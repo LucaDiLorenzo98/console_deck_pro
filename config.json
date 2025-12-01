@@ -1,0 +1,47 @@
+        "btn_2": {
+            "action": "open_url",
+            "value": "https://www.chatgpt.com"
+        },
+        "btn_3": {
+            "action": "open_url",
+            "value": "https://www.youtube.com"
+        },
+        "btn_6": {
+            "action": "hotkey",
+            "value": [
+                "ctrl",
+                "stamp"
+            ]
+        },
+        "enc_cw": {
+            "action": "hotkey",
+            "value": [
+                "volumeup"
+            ]
+        },
+        "enc_ccw": {
+            "action": "hotkey",
+            "value": [
+                "volumedown"
+            ]
+        },
+        "slider_1": {
+            "action": "set_volume"
+        },
+        "knob_1_cw": {
+            "action": "hotkey",
+            "value": [
+                "up"
+            ]
+        },
+        "knob_1_ccw": {
+            "action": "hotkey",
+            "value": [
+                "down"
+            ]
+        },
+        "slider_2": {
+            "action": "set_brightness"
+        }
+    }
+}

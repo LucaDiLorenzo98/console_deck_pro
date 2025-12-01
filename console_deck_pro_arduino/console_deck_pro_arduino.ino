@@ -67,6 +67,8 @@ const uint8_t EXT_A0 = A0;
 const uint8_t EXT_A1 = A1;
 const uint8_t EXT_A2 = A2;
 const uint8_t EXT_A3 = A3;
+const uint8_t EXT_A6 = A6;
+const uint8_t EXT_A7 = A7;
 
 volatile long encoderValue = 0;
 long lastEncoderValue = 0;
@@ -176,10 +178,9 @@ void setupExtModule()
   {
     pinMode(EXT_A0, INPUT_PULLUP);
     pinMode(EXT_A1, INPUT_PULLUP);
-    pinMode(EXT_A2, OUTPUT);
-    digitalWrite(EXT_A2, HIGH);
-    pinMode(EXT_A3, OUTPUT);
-    digitalWrite(EXT_A3, HIGH);
+    pinMode(EXT_A2, INPUT_PULLUP);
+    pinMode(EXT_A3, INPUT_PULLUP);
+    // A6 and A7 are analog-only inputs on most Arduinos (Nano/Mini), no pinMode needed or INPUT
   }
 }
 
@@ -393,37 +394,22 @@ void readExtModule()
     for (int i = 0; i < 6; i++)
       extBtnStates[i] = 0;
 
-    digitalWrite(EXT_A2, LOW);
-    if (!digitalRead(EXT_A0))
-    {
-      strcpy(extAction, "Ext Btn 1");
-      extBtnStates[0] = 1;
-    }
-    if (!digitalRead(EXT_A1))
-    {
-      strcpy(extAction, "Ext Btn 2");
-      extBtnStates[1] = 1;
-    }
-    digitalWrite(EXT_A2, HIGH);
+    // Buttons 1-4 (Digital, Internal Pullup, Active LOW)
+    if (digitalRead(EXT_A0) == LOW) { strcpy(extAction, "Ext Btn 1"); extBtnStates[0] = 1; }
+    if (digitalRead(EXT_A1) == LOW) { strcpy(extAction, "Ext Btn 2"); extBtnStates[1] = 1; }
+    if (digitalRead(EXT_A2) == LOW) { strcpy(extAction, "Ext Btn 3"); extBtnStates[2] = 1; }
+    if (digitalRead(EXT_A3) == LOW) { strcpy(extAction, "Ext Btn 4"); extBtnStates[3] = 1; }
 
-    digitalWrite(EXT_A3, LOW);
-    if (!digitalRead(EXT_A0))
-    {
-      strcpy(extAction, "Ext Btn 3");
-      extBtnStates[2] = 1;
-    }
-    if (!digitalRead(EXT_A1))
-    {
-      strcpy(extAction, "Ext Btn 4");
-      extBtnStates[3] = 1;
-    }
-    digitalWrite(EXT_A3, HIGH);
+    // Buttons 5-6 (Analog, External Pullup 20k to 5V, Button to GND)
+    // Pressed = Voltage drops near 0. Unpressed = 5V (~1023). Threshold 500.
+    if (analogRead(EXT_A6) < 500) { strcpy(extAction, "Ext Btn 5"); extBtnStates[4] = 1; }
+    if (analogRead(EXT_A7) < 500) { strcpy(extAction, "Ext Btn 6"); extBtnStates[5] = 1; }
   }
 }
 
 void setup()
 {
-  Serial.begin(9600); // SERIAL INIT
+  Serial.begin(115200); // SERIAL INIT
   u8g2.begin();
   u8g2.setFontMode(1);
   pinMode(PIN_LED, OUTPUT);

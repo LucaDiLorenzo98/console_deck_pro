@@ -1,6 +1,6 @@
 {
     "sketch": "console_deck_pro_arduino\\console_deck_pro_arduino.ino",
-    "port": "COM16",
+    "port": "COM3",
     "configuration": "cpu=atmega328",
     "board": "arduino:avr:nano"
 }
