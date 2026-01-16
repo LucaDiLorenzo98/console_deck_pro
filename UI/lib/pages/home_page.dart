@@ -259,7 +259,27 @@ class _HomePageState extends State<HomePage> {
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    _buttonConfigs[index]!['type']!,
+                                    () {
+                                      final type =
+                                          _buttonConfigs[index]!['type']!;
+                                      if (type == 'Link') {
+                                        return AppStrings.get(
+                                          currentLocale,
+                                          AppKeys.typeLink,
+                                        );
+                                      } else if (type == 'App') {
+                                        return AppStrings.get(
+                                          currentLocale,
+                                          AppKeys.typeApp,
+                                        );
+                                      } else if (type == 'Hotkey') {
+                                        return AppStrings.get(
+                                          currentLocale,
+                                          AppKeys.typeHotkey,
+                                        );
+                                      }
+                                      return type;
+                                    }(),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 14,
