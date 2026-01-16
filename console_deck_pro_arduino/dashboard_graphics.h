@@ -125,7 +125,7 @@ void drawSimpleLayout(U8G2 &u8g2, int cpuUsage, int pcTemp, float memFree)
     drawRamIcon(u8g2, START_X_SIMPLE, currentY);
     u8g2.setCursor(START_X_SIMPLE + 25, currentY + TEXT_OFF);
     u8g2.print(memFree, 1);
-    u8g2.print(F(" GB"));
+    u8g2.print(F(" %"));
 }
 
 void drawAdvancedLayout(U8G2 &u8g2, int cpu, int gpu, float mem, float totRam, int tempC, int tempG, float netD, float netU)
@@ -150,44 +150,60 @@ void drawAdvancedLayout(U8G2 &u8g2, int cpu, int gpu, float mem, float totRam, i
     y += H;
     drawSmallGpuIcon(u8g2, 3, y - 9);
     u8g2.drawStr(18, y, "GPU");
-    drawProgressBar(u8g2, x_bar, y - 8, 50, 8, gpu);
-    u8g2.setCursor(x_val, y);
-    u8g2.print(gpu);
-    u8g2.print("%");
+    if (gpu >= 0) {
+        drawProgressBar(u8g2, x_bar, y - 8, 50, 8, gpu);
+        u8g2.setCursor(x_val, y);
+        u8g2.print(gpu);
+        u8g2.print("%");
+    } else {
+        u8g2.drawStr(x_bar, y, "N/A"); // Centered roughly
+    }
 
     // RAM
     y += H;
     drawSmallRamIcon(u8g2, 3, y - 9);
     u8g2.drawStr(18, y, "RAM");
-    drawProgressBar(u8g2, x_bar, y - 8, 25, 8, (int)((mem / totRam) * 100));
-    u8g2.setCursor(75, y);
-    u8g2.print(mem, 1);
-    u8g2.print("/");
-    u8g2.print((int)totRam);
+    
+    // RAM is passed as % (mem) because totalRAM=100 in parser
+    drawProgressBar(u8g2, x_bar, y - 8, 50, 8, (int)mem);
+    
+    u8g2.setCursor(x_val, y);
+    u8g2.print((int)mem);
+    u8g2.print("%");
 
     // TEMPS
     y += H;
     drawSmallTempIcon(u8g2, 3, y - 9);
     u8g2.setCursor(15, y);
     u8g2.print("C:");
-    u8g2.print(tempC);
-    u8g2.print("\xb0");
+    if(tempC >= 0) {
+       u8g2.print(tempC);
+       u8g2.print("C"); 
+    } else {
+       u8g2.print("N/A");
+    }
 
     drawSmallTempIcon(u8g2, 64, y - 9);
     u8g2.setCursor(76, y);
     u8g2.print("G:");
-    u8g2.print(tempG);
-    u8g2.print("\xb0");
+    if (tempG >= 0) {
+        u8g2.print(tempG);
+        u8g2.print("C");
+    } else {
+        u8g2.print("N/A");
+    }
 
     // NET
     y += H;
     drawSmallArrow(u8g2, 3, y - 9, false); // Down
     u8g2.setCursor(15, y);
     u8g2.print(netD, 1);
+    u8g2.print("Mb");
 
     drawSmallArrow(u8g2, 64, y - 9, true); // Up
     u8g2.setCursor(76, y);
     u8g2.print(netU, 1);
+    u8g2.print("Mb");
 }
 
 #endif

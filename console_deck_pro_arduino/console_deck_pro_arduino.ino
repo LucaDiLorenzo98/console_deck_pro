@@ -51,8 +51,15 @@ bool calibWaitingRelease = false;
 
 U8G2_SH1107_SEEED_128X128_1_HW_I2C u8g2(U8G2_R2, U8X8_PIN_NONE);
 
+// --- OPTIMIZED VARIABLES ---
+// Removing String object. Using char buffer.
+char serialBuf[64];
+int serialBufIdx = 0;
+
 int cpuUsage = 45;
 int gpuUsage = 32;
+// Use int for RAM to save float lib overhead if possible, but float is small enough usually. 
+// Keeping floats for now, removing String is bigger win.
 float memFree = 8.4;
 float totalRAM = 16.0;
 int pcTemp = 62;
@@ -89,7 +96,8 @@ const int MENU_ITEMS = 5; // Updated to 5
 int submenuIndex = 0;
 int submenuMaxItems = 0;
 
-const char *subItemsHome[] = {"PC STATS", "PC STATS+", "SPLASH IMAGE", "TESTING"};
+// Update Menu Name
+const char *subItemsHome[] = {"PC STATS", "PC STATS PLUS", "SPLASH IMAGE", "TESTING"};
 const char *subItemsModules[] = {"NONE", "BUTTONS", "SLIDERS", "KNOBS"};
 const char *subItemsBacklight[] = {"YES", "NO"};
 
@@ -139,13 +147,21 @@ void saveBtnMap() {
 
 void drawBackIcon(int x, int y)
 {
-  u8g2.drawTriangle(x - 16, y, x - 4, y - 10, x - 4, y + 10);
-  u8g2.drawBox(x - 4, y - 4, 16, 8);
-  u8g2.drawBox(x + 12, y - 4, 4, 14);
+  // Exit Icon (Double Door Style)
+  // Left Side: Solid Block (The Door)
+  u8g2.drawBox(x - 14, y - 16, 14, 32);
+  
+  // Right Side: Empty Frame (The Exit)
+  u8g2.drawFrame(x + 2, y - 16, 14, 32);
+  
+  // Arrow: Pointing Right (Inside Right Frame)
+  u8g2.drawLine(x + 5, y, x + 10, y); // Shaft
+  u8g2.drawTriangle(x + 12, y, x + 9, y - 3, x + 9, y + 3); // Head
 }
 void drawHomeIcon(int x, int y)
 {
-  u8g2.drawTriangle(x, y - 26, x - 24, y, x + 24, y);
+  // Roof: Simple straight solid triangle
+  u8g2.drawTriangle(x, y - 24, x - 22, y, x + 22, y);
   u8g2.drawBox(x - 18, y, 36, 20);
   u8g2.setColorIndex(0);
   u8g2.drawBox(x - 6, y + 8, 12, 12);
@@ -176,21 +192,27 @@ void drawBacklightIcon(int x, int y)
   u8g2.drawLine(x - 14, y - 14, x - 20, y - 20);
   u8g2.drawLine(x + 14, y - 14, x + 20, y - 20);
 }
-
 void drawSettingsIcon(int x, int y)
 {
-  // Simple Gear
-  u8g2.drawDisc(x, y, 12);
-  u8g2.drawBox(x-16, y-3, 32, 6);
-  u8g2.drawBox(x-3, y-16, 6, 32);
-  // Diagonals
-  u8g2.drawLine(x-10, y-10, x+10, y+10);
-  u8g2.drawLine(x-11, y-10, x+9, y+10); 
-  u8g2.drawLine(x+10, y-10, x-10, y+10);
-  u8g2.drawLine(x+9, y-10, x-11, y+10); 
+  // Bigger Gear
+  int r = 15;
+  u8g2.drawDisc(x, y, r);
+  
+  // Teeth (Thicker and longer)
+  u8g2.drawBox(x - 20, y - 4, 40, 8);
+  u8g2.drawBox(x - 4, y - 20, 8, 40);
+  
+  // Diagonals (Simulated with lines for simplicity, made thicker)
+  u8g2.drawLine(x - 14, y - 14, x + 14, y + 14);
+  u8g2.drawLine(x - 15, y - 14, x + 13, y + 14);
+  u8g2.drawLine(x - 13, y - 14, x + 15, y + 14);
+
+  u8g2.drawLine(x + 14, y - 14, x - 14, y + 14);
+  u8g2.drawLine(x + 15, y - 14, x - 13, y + 14);
+  u8g2.drawLine(x + 13, y - 14, x - 15, y + 14);
   
   u8g2.setColorIndex(0);
-  u8g2.drawDisc(x, y, 6); 
+  u8g2.drawDisc(x, y, 8); // Bigger hole
   u8g2.setColorIndex(1);
 }
 
@@ -258,8 +280,36 @@ void drawCenteredStr(int y, const char *str)
   u8g2.drawStr((128 - w) / 2, y, str);
 }
 
+// ... (Globals)
+unsigned long lastStatsTime = 0;
+bool pcConnected = false;
+
+// ...
+
 void drawDefaultScreen()
 {
+  if (currentHomeMode == HOME_SPLASH)
+  {
+      // Always show Splash if selected
+      u8g2.setFont(u8g2_font_ncenB10_tr);
+      drawCenteredStr(55, "CONSOLE");
+      drawCenteredStr(75, "DECK PRO");
+      u8g2.setFont(u8g2_font_6x10_tr);
+      drawCenteredStr(92, FIRMWARE_VERSION);
+      return;
+  }
+
+  // Check Connection for Stats Modes
+  if ((currentHomeMode == HOME_BASIC || currentHomeMode == HOME_ADVANCE) && !pcConnected)
+  {
+      u8g2.setFont(u8g2_font_ncenB10_tr);
+      drawCenteredStr(60, "WAITING FOR");
+      drawCenteredStr(80, "PC DATA...");
+      u8g2.setFont(u8g2_font_6x10_tr);
+      drawCenteredStr(100, "(Run Python App)");
+      return;
+  }
+
   if (currentHomeMode == HOME_BASIC)
   {
     drawSimpleLayout(u8g2, cpuUsage, pcTemp, memFree);
@@ -268,33 +318,23 @@ void drawDefaultScreen()
   {
     drawAdvancedLayout(u8g2, cpuUsage, gpuUsage, memFree, totalRAM, pcTemp, tempGPU, netDown, netUp);
   }
-  else if (currentHomeMode == HOME_SPLASH)
-  {
-    u8g2.setFont(u8g2_font_ncenB10_tr);
-    drawCenteredStr(55, "CONSOLE");
-    drawCenteredStr(75, "DECK PRO");
-    u8g2.setFont(u8g2_font_6x10_tr);
-    drawCenteredStr(92, FIRMWARE_VERSION);
-  }
-  else
+  else // Testing Mode
   {
     char buf[32];
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    drawCenteredStr(25, "TESTING MODE");
     u8g2.setFont(u8g2_font_6x10_tr);
-    sprintf(buf, "Enc: %ld", encoderValue);
-    drawCenteredStr(45, buf);
+    u8g2.setCursor(45, 30); u8g2.print("Enc: "); u8g2.print(encoderValue);
+
     if (currentModule == MOD_NONE)
-      sprintf(buf, "Mod: NONE");
+      drawCenteredStr(65, "Mod: NONE");
     else if (!moduleConnected)
-      sprintf(buf, "Mod: DISCONN.");
+      drawCenteredStr(65, "Mod: DISCONN.");
     else if (currentModule == MOD_SLIDERS)
-      sprintf(buf, "Mod: SLIDERS");
+      drawCenteredStr(65, "Mod: SLIDERS");
     else if (currentModule == MOD_KNOBS)
-      sprintf(buf, "Mod: KNOBS");
+      drawCenteredStr(65, "Mod: KNOBS");
     else
-      sprintf(buf, "Mod: BUTTONS");
-    drawCenteredStr(65, buf);
+      drawCenteredStr(65, "Mod: BUTTONS");
+      
     drawCenteredStr(85, mainAction);
     u8g2.drawHLine(44, 95, 40);
     if (currentModule != MOD_NONE && moduleConnected)
@@ -349,7 +389,8 @@ void drawMenuScreen()
 
 void drawSubmenuScreen()
 {
-  u8g2.setFont(u8g2_font_ncenB08_tr);
+  // REMOVED ncenB08, utilizing existing small font
+  u8g2.setFont(u8g2_font_6x10_tr);
   int startY = 20;
   int lineHeight = 16;
   const char **items;
@@ -372,10 +413,11 @@ void drawCalibrationScreen() {
     u8g2.setFont(u8g2_font_ncenB10_tr);
     drawCenteredStr(30, "CALIBRATION");
     
-    char buf[32];
-    sprintf(buf, "PRESS BTN %d", calibStep + 1);
-    u8g2.setFont(u8g2_font_ncenB14_tr);
-    drawCenteredStr(70, buf);
+    // Manual print instead of sprintf to save space
+    // Also reusing standard font instead of B14
+    u8g2.setCursor(20, 70); 
+    u8g2.print("PRESS BTN ");
+    u8g2.print(calibStep + 1);
     
     u8g2.setFont(u8g2_font_6x10_tr);
     drawCenteredStr(100, "(Scan Matrix)");
@@ -435,7 +477,14 @@ void readExtModule()
     static int lp1 = -1, lp2 = -1;
     if (p1 != lp1 || p2 != lp2 || extAction[0] == '\0')
     {
-      sprintf(extAction, "S1:%d%% S2:%d%%", p1, p2);
+      // Manual formatting
+      strcpy(extAction, "S1:");
+      char tmp[4]; 
+      itoa(p1, tmp, 10); strcat(extAction, tmp);
+      strcat(extAction, "% S2:");
+      itoa(p2, tmp, 10); strcat(extAction, tmp);
+      strcat(extAction, "%");
+      
       lp1 = p1;
       lp2 = p2;
     }
@@ -450,14 +499,14 @@ void readExtModule()
       extBtnStates[i] = 0;
 
     // Buttons 1-4 (Digital, Internal Pullup, Active LOW)
-    if (digitalRead(EXT_A0) == LOW) { strcpy(extAction, "Ext Btn 1"); extBtnStates[0] = 1; }
-    if (digitalRead(EXT_A1) == LOW) { strcpy(extAction, "Ext Btn 2"); extBtnStates[1] = 1; }
-    if (digitalRead(EXT_A2) == LOW) { strcpy(extAction, "Ext Btn 3"); extBtnStates[2] = 1; }
-    if (digitalRead(EXT_A3) == LOW) { strcpy(extAction, "Ext Btn 4"); extBtnStates[3] = 1; }
+    if (digitalRead(EXT_A0) == LOW) { strcpy(extAction, "E Btn 1"); extBtnStates[0] = 1; }
+    if (digitalRead(EXT_A1) == LOW) { strcpy(extAction, "E Btn 2"); extBtnStates[1] = 1; }
+    if (digitalRead(EXT_A2) == LOW) { strcpy(extAction, "E Btn 3"); extBtnStates[2] = 1; }
+    if (digitalRead(EXT_A3) == LOW) { strcpy(extAction, "E Btn 4"); extBtnStates[3] = 1; }
 
-    // Buttons 5-6 (Analog, External Pullup 20k to 5V, Button to GND)
-    if (analogRead(EXT_A6) < 500) { strcpy(extAction, "Ext Btn 5"); extBtnStates[4] = 1; }
-    if (analogRead(EXT_A7) < 500) { strcpy(extAction, "Ext Btn 6"); extBtnStates[5] = 1; }
+    // Buttons 5-6 (Analog)
+    if (analogRead(EXT_A6) < 500) { strcpy(extAction, "E Btn 5"); extBtnStates[4] = 1; }
+    if (analogRead(EXT_A7) < 500) { strcpy(extAction, "E Btn 6"); extBtnStates[5] = 1; }
   }
 }
 
@@ -465,6 +514,7 @@ void setup()
 {
   Serial.begin(115200); // SERIAL INIT
   u8g2.begin();
+  Wire.setClock(400000); // Fast I2C
   u8g2.setFontMode(1);
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, LOW);
@@ -488,6 +538,59 @@ void loop()
 {
   bool update = false;
   unsigned long now = millis();
+
+  // READ INCOMING SERIAL STATS using char buffer (no String class)
+  while (Serial.available() > 0) {
+      char c = Serial.read();
+      if (c == '\n') {
+          serialBuf[serialBufIdx] = '\0';
+          serialBufIdx = 0; // reset for next
+          
+          if (strncmp(serialBuf, "STATS:", 6) == 0) {
+              lastStatsTime = now;
+              if (!pcConnected) { pcConnected = true; update = true; }
+              
+              char* ptr = serialBuf + 6;
+              // strtok modifies string, so we go field by field
+              char* token = strtok(ptr, ",");
+              if(token) cpuUsage = atoi(token);
+              
+              token = strtok(NULL, ",");
+              if(token) gpuUsage = atoi(token);
+              
+              token = strtok(NULL, ",");
+              if(token) { int ramP = atoi(token); totalRAM = 100; memFree = ramP; }
+              
+              token = strtok(NULL, ",");
+              if(token) pcTemp = atoi(token);
+              
+              token = strtok(NULL, ",");
+              if(token) tempGPU = atoi(token);
+              
+              token = strtok(NULL, ",");
+              if(token) netDown = atof(token);
+              
+              token = strtok(NULL, ",");
+              if(token) netUp = atof(token);
+              
+              if (currentState == STATE_DEFAULT && (currentHomeMode == HOME_BASIC || currentHomeMode == HOME_ADVANCE)) {
+                  update = true;
+              }
+          }
+      } else {
+          if (serialBufIdx < 63) {
+              serialBuf[serialBufIdx++] = c;
+          }
+      }
+  }
+  
+  // Check Timeout
+  if (pcConnected && (now - lastStatsTime > 5000)) {
+      pcConnected = false;
+      if (currentState == STATE_DEFAULT && (currentHomeMode == HOME_BASIC || currentHomeMode == HOME_ADVANCE)) {
+          update = true;
+      }
+  }
 
   // MATRIX SCANNING LOGIC WITH CALIBRATION SUPPORT
   matrixActive = false;
@@ -675,12 +778,21 @@ void loop()
           
           if(mapped_id >= 0 && mapped_id < 9) {
              mainBtnStates[mapped_id] = 1; 
-             sprintf(mainAction, "BTN %d", mapped_id + 1);
+             // Manual format
+             char newStr[16] = "BTN ";
+             char numStr[2]; 
+             itoa(mapped_id + 1, numStr, 10);
+             strcat(newStr, numStr);
+             
+             if (strcmp(mainAction, newStr) != 0) {
+                strcpy(mainAction, newStr);
+                update = true;
+             }
           }
           
           lastActionTime = now;
           matrixActive = true;
-          update = true;
+          // update = true; // REMOVED: Only update if text changed above
         }
       }
       digitalWrite(rows[r], HIGH);
@@ -702,20 +814,70 @@ void loop()
      readExtModule();
      if (strcmp(prevExt, extAction) != 0 || prevConn != moduleConnected) update = true;
 
-     // SERIAL PRINTS
-     for (int i = 0; i < 9; i++) { Serial.print(mainBtnStates[i]); Serial.print(";"); }
-     Serial.print(!digitalRead(PIN_ENC_SW)); Serial.print(";");
-     Serial.print(encoderValue); Serial.print(";");
-     Serial.print((int)currentModule);
-     if (currentModule != MOD_NONE) {
-        Serial.print(";");
-        if (currentModule == MOD_EXT_BTNS) {
-           for(int i=0; i<6; i++) { Serial.print(extBtnStates[i]); if(i<5) Serial.print(";"); }
-        } else {
-           Serial.print(serVal1); Serial.print(";"); Serial.print(serVal2);
-        }
+     // SERIAL PRINTS - OPTIMIZED
+     // Only send if something changed or every 50ms heartbeat
+     static unsigned long lastSerialTime = 0;
+     static int lastSentBtnStates[9] = {0};
+     static int lastSentExtBtnStates[6] = {0};
+     static long lastSentEnc = -999;
+     static int lastSentSer1 = -1;
+     static int lastSentSer2 = -1;
+     
+     bool dataChanged = false;
+     
+     // Check Main Buttons
+     for(int i=0; i<9; i++) {
+         if(mainBtnStates[i] != lastSentBtnStates[i]) {
+             dataChanged = true; 
+             break;
+         }
      }
-     Serial.println();
+     
+     // Check Encoder
+     if(encoderValue != lastSentEnc || digitalRead(PIN_ENC_SW) == LOW) { // Always send if clicked to be safe
+         dataChanged = true;
+     }
+
+     // Check Module
+     if(currentModule == MOD_EXT_BTNS) {
+         for(int i=0; i<6; i++) {
+             if(extBtnStates[i] != lastSentExtBtnStates[i]) { dataChanged = true; break; }
+         }
+     } else if(currentModule == MOD_SLIDERS || currentModule == MOD_KNOBS) {
+         if(abs(serVal1 - lastSentSer1) > 1 || abs(serVal2 - lastSentSer2) > 1) { // 1% deadband
+             dataChanged = true;
+         }
+     }
+
+     if (dataChanged || (now - lastSerialTime > 50)) // 20Hz Heartbeat min
+     {
+         for (int i = 0; i < 9; i++) { 
+             Serial.print(mainBtnStates[i]); 
+             Serial.print(";"); 
+             lastSentBtnStates[i] = mainBtnStates[i];
+         }
+         Serial.print(!digitalRead(PIN_ENC_SW)); Serial.print(";");
+         Serial.print(encoderValue); Serial.print(";");
+         lastSentEnc = encoderValue;
+         
+         Serial.print((int)currentModule);
+         if (currentModule != MOD_NONE) {
+            Serial.print(";");
+            if (currentModule == MOD_EXT_BTNS) {
+               for(int i=0; i<6; i++) { 
+                   Serial.print(extBtnStates[i]); 
+                   if(i<5) Serial.print(";"); 
+                   lastSentExtBtnStates[i] = extBtnStates[i];
+               }
+            } else {
+               Serial.print(serVal1); Serial.print(";"); Serial.print(serVal2);
+               lastSentSer1 = serVal1;
+               lastSentSer2 = serVal2;
+            }
+         }
+         Serial.println();
+         lastSerialTime = now;
+     }
   }
 
   if (backlightEnabled) digitalWrite(PIN_LED, HIGH);

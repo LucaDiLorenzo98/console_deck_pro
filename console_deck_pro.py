@@ -7,6 +7,18 @@ import pyautogui
 import screen_brightness_control as sbc
 import os
 import sys
+import threading
+import psutil
+
+# GPU Utils (Optional)
+try:
+    import GPUtil
+    HAS_GPUTIL = True
+except ImportError:
+    HAS_GPUTIL = False
+
+# Debug Configuration
+ENABLE_TELEMETRY_LOG = True
 
 # Configuration
 CONFIG_FILE = 'config.json'
@@ -121,11 +133,123 @@ def main():
     prev_knob_vals = [None, None]
     
     # State for Encoder Long Press
-    enc_press_start_time = None
-    enc_long_press_triggered = False
+    # --- HELPER FUNCTIONS ---
+    def get_net_bytes():
+        try:
+            counters = psutil.net_io_counters(pernic=True)
+            rx = 0
+            tx = 0
+            for nic, c in counters.items():
+                rx += c.bytes_recv
+                tx += c.bytes_sent
+            return rx, tx
+        except:
+            return 0, 0
+
+    def get_cpu_temp():
+        # Try psutil
+        t = -1
+        try:
+            temps = psutil.sensors_temperatures()
+            if temps:
+                for name, entries in temps.items():
+                    if 'cpu' in name.lower() or 'core' in name.lower() or 'package' in name.lower():
+                        val = int(entries[0].current)
+                        if val > 0: 
+                            t = val
+                            break
+        except:
+            pass
+        
+        # If invalid, Try WMI
+        if t <= 0:
+            try:
+                ps_cmd = "Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace \"root/wmi\" | Select -ExpandProperty CurrentTemperature"
+                out = subprocess.check_output(["powershell", "-c", ps_cmd], creationflags=subprocess.CREATE_NO_WINDOW).decode().strip()
+                if out and out.isdigit():
+                    kelvin_x10 = int(out)
+                    cels = (kelvin_x10 / 10.0) - 273.15
+                    t = int(cels)
+            except:
+                pass
+        return t
+
+    # Init Stats
+    last_stats_time = 0
+    last_net_recv, last_net_sent = get_net_bytes()
 
     try:
         while True:
+            current_time = time.time()
+            
+            # --- SEND STATS TO ARDUINO (Every 0.5 seconds) ---
+            if current_time - last_stats_time > 0.5:
+                # 1. CPU
+                cpu = int(psutil.cpu_percent())
+                
+                # 2. GPU
+                gpu = -1
+                temp_gpu = -1
+                
+                # GPUtil
+                if HAS_GPUTIL:
+                    try:
+                        gpus = GPUtil.getGPUs()
+                        if gpus:
+                            gpu = int(gpus[0].load * 100)
+                            temp_gpu = int(gpus[0].temperature)
+                    except: pass
+                
+                # Nvidia-SMI Fallback
+                if gpu == -1:
+                    try:
+                         cmd = "nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits"
+                         output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
+                         parts_gpu = output.split(',')
+                         if len(parts_gpu) >= 2:
+                             gpu = int(parts_gpu[0].strip())
+                             temp_gpu = int(parts_gpu[1].strip())
+                    except: pass
+
+                # 3. RAM
+                ram = int(psutil.virtual_memory().percent)
+                
+                # 4. CPU TEMP
+                temp_cpu = get_cpu_temp()
+                if temp_cpu <= 0: temp_cpu = -1 # Final sanity check
+
+                # 5. NETWORK
+                down_speed = 0.0
+                up_speed = 0.0
+                curr_recv, curr_sent = get_net_bytes()
+                
+                time_diff = current_time - last_stats_time
+                if time_diff < 0.1: time_diff = 0.5
+                
+                if last_stats_time != 0 and last_net_recv > 0:
+                     delta_recv = max(0, curr_recv - last_net_recv)
+                     delta_sent = max(0, curr_sent - last_net_sent)
+                     
+                     # Mbps
+                     down_speed = (delta_recv * 8) / 1000000.0 / time_diff
+                     up_speed = (delta_sent * 8) / 1000000.0 / time_diff
+                
+                last_net_recv = curr_recv
+                last_net_sent = curr_sent
+                last_stats_time = current_time
+                
+                # Format
+                stats_msg = f"STATS:{cpu},{gpu},{ram},{temp_cpu},{temp_gpu},{down_speed:.1f},{up_speed:.1f}\n"
+                try:
+                    ser.write(stats_msg.encode('utf-8'))
+                    if ENABLE_TELEMETRY_LOG:
+                        gpu_str = f"{gpu}%" if gpu != -1 else "N/A"
+                        tq_str = f"{temp_cpu}C" if temp_cpu != -1 else "N/A"
+                        tg_str = f"{temp_gpu}C" if temp_gpu != -1 else "N/A"
+                        print(f"[STATS] CPU:{cpu}% Temp:{tq_str} | GPU:{gpu_str} Temp:{tg_str} | RAM:{ram}% | Net:D{down_speed:.1f}Mb/U{up_speed:.1f}Mb")
+                except Exception as e:
+                    print(f"Failed to send stats: {e}")
+
             # Read all waiting data and take only the last line (Real-time, no buffer lag)
             if ser.in_waiting > 0:
                 try:
@@ -207,10 +331,10 @@ def main():
                         if len(parts) >= 18:
                             current_ext_btns = [int(x) for x in parts[12:18]]
                             for i in range(6):
-                                if current_ext_btns[i] == 1 and prev_ext_btns[i] == 0:
-                                    print(f"[EVENT] Ext Button {i+1} Pressed")
-                                    btn_key = f"ext_btn_{i+1}"
-                                    execute_action(config['mappings'].get(btn_key))
+                                    if current_ext_btns[i] == 1 and prev_ext_btns[i] == 0:
+                                        print(f"[EVENT] Ext Button {i+1} Pressed")
+                                        btn_key = f"ext_btn_{i+1}"
+                                        execute_action(config['mappings'].get(btn_key))
                             prev_ext_btns = current_ext_btns
                             
                     elif module_id == 2 or module_id == 3: # Sliders or Knobs
@@ -248,7 +372,7 @@ def main():
 
                 except ValueError:
                     pass 
-
+            
             time.sleep(0.001)
 
     except KeyboardInterrupt:
@@ -257,3 +381,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    input("\n[info] Press Enter to close this window...")

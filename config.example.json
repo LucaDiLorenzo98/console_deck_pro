@@ -1,0 +1,80 @@
+{
+    "serial": {
+        "port": "COM3",
+        "baud_rate": 115200
+    },
+    "mappings": {
+        "btn_1": {
+            "action": "open_url",
+            "value": "https://www.youtube.com"
+        },
+        "btn_2": {
+            "action": "open_url",
+            "value": "https://chatgpt.com"
+        },
+        "btn_3": {
+            "action": "open_url",
+            "value": "https://calendar.google.com"
+        },
+        "btn_4": {
+            "action": "hotkey",
+            "value": [
+                "win",
+                "printscreen"
+            ]
+        },
+        "btn_5": {
+            "action": "open_url",
+            "value": "https://makerworld.com"
+        },
+        "btn_6": {
+            "action": "hotkey",
+            "value": [
+                "ctrl",
+                "a"
+            ]
+        },
+        "btn_7": {
+            "action": "open_app",
+            "value": "obs64.exe"
+        },
+        "btn_8": {
+            "action": "open_app",
+            "value": "antigravity.exe"
+        },
+        "btn_9": {
+            "action": "open_url",
+            "value": "https://mail.google.com"
+        },
+        "enc_click": {
+            "action": "toggle_mute",
+            "value": null
+        },
+        "enc_cw": {
+            "action": "change_volume",
+            "value": 1
+        },
+        "enc_ccw": {
+            "action": "change_volume",
+            "value": -1
+        },
+        "slider_1": {
+            "action": "set_volume"
+        },
+        "slider_2": {
+            "action": "set_brightness"
+        },
+        "knob_1_cw": {
+            "action": "hotkey",
+            "value": [
+                "up"
+            ]
+        },
+        "knob_1_ccw": {
+            "action": "hotkey",
+            "value": [
+                "down"
+            ]
+        }
+    }
+}

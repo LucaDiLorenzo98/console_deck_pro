@@ -1,4 +1,23 @@
-.vscode/c_cpp_properties.json
+# VS Code
 .vscode/
-.vscode/*
-.vscode
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Local Configuration
+config.json
+
+# IDEs
+.idea/
+*.iml
+
+# Logs
+*.log
+
+
