@@ -4,7 +4,7 @@
 #include <EEPROM.h>
 #include "dashboard_graphics.h"
 
-const char *FIRMWARE_VERSION = "v1.0.0";
+const char *FIRMWARE_VERSION = "v1.1.0";
 
 enum ModuleType
 {
@@ -19,7 +19,8 @@ enum ScreenState
 {
   STATE_DEFAULT,
   STATE_MENU,
-  STATE_SUBMENU
+  STATE_SUBMENU,
+  STATE_CALIBRATION // New State
 };
 ScreenState currentState = STATE_DEFAULT;
 
@@ -41,6 +42,12 @@ const int EEPROM_ADDR_HOME = 1;
 const int EEPROM_ADDR_MOD = 2;
 const int EEPROM_ADDR_LIGHT = 3;
 const byte MAGIC_NUMBER = 0x42;
+
+// --- NEW VARIABLES FOR CALIBRATION ---
+uint8_t btnMap[9] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+const int EEPROM_ADDR_MAP = 10;
+int calibStep = 0;
+bool calibWaitingRelease = false;
 
 U8G2_SH1107_SEEED_128X128_1_HW_I2C u8g2(U8G2_R2, U8X8_PIN_NONE);
 
@@ -78,7 +85,7 @@ unsigned long btnPressStartTime = 0;
 bool btnPressed = false;
 bool longPressTriggered = false;
 int menuIndex = 1;
-const int MENU_ITEMS = 4;
+const int MENU_ITEMS = 5; // Updated to 5
 int submenuIndex = 0;
 int submenuMaxItems = 0;
 
@@ -108,6 +115,13 @@ void loadSettings()
     currentHomeMode = (HomeMode)EEPROM.read(EEPROM_ADDR_HOME);
     currentModule = (ModuleType)EEPROM.read(EEPROM_ADDR_MOD);
     backlightEnabled = (bool)EEPROM.read(EEPROM_ADDR_LIGHT);
+    
+    // Load Map
+    for(int i=0; i<9; i++) {
+       uint8_t val = EEPROM.read(EEPROM_ADDR_MAP + i);
+       if(val < 9) btnMap[i] = val;
+       else btnMap[i] = i; // Reset if invalid
+    }
   }
 }
 void saveSettings()
@@ -116,6 +130,11 @@ void saveSettings()
   EEPROM.update(EEPROM_ADDR_HOME, (uint8_t)currentHomeMode);
   EEPROM.update(EEPROM_ADDR_MOD, (uint8_t)currentModule);
   EEPROM.update(EEPROM_ADDR_LIGHT, (uint8_t)backlightEnabled);
+}
+void saveBtnMap() {
+  for(int i=0; i<9; i++) {
+    EEPROM.update(EEPROM_ADDR_MAP + i, btnMap[i]);
+  }
 }
 
 void drawBackIcon(int x, int y)
@@ -158,6 +177,23 @@ void drawBacklightIcon(int x, int y)
   u8g2.drawLine(x + 14, y - 14, x + 20, y - 20);
 }
 
+void drawSettingsIcon(int x, int y)
+{
+  // Simple Gear
+  u8g2.drawDisc(x, y, 12);
+  u8g2.drawBox(x-16, y-3, 32, 6);
+  u8g2.drawBox(x-3, y-16, 6, 32);
+  // Diagonals
+  u8g2.drawLine(x-10, y-10, x+10, y+10);
+  u8g2.drawLine(x-11, y-10, x+9, y+10); 
+  u8g2.drawLine(x+10, y-10, x-10, y+10);
+  u8g2.drawLine(x+9, y-10, x-11, y+10); 
+  
+  u8g2.setColorIndex(0);
+  u8g2.drawDisc(x, y, 6); 
+  u8g2.setColorIndex(1);
+}
+
 void setupExtModule()
 {
   pinMode(EXT_A0, INPUT);
@@ -180,7 +216,6 @@ void setupExtModule()
     pinMode(EXT_A1, INPUT_PULLUP);
     pinMode(EXT_A2, INPUT_PULLUP);
     pinMode(EXT_A3, INPUT_PULLUP);
-    // A6 and A7 are analog-only inputs on most Arduinos (Nano/Mini), no pinMode needed or INPUT
   }
 }
 
@@ -300,6 +335,11 @@ void drawMenuScreen()
     drawBacklightIcon(centerX, iconY);
     drawCenteredStr(textY, "BACKLIGHT");
   }
+  else if (menuIndex == 4)
+  {
+    drawSettingsIcon(centerX, iconY);
+    drawCenteredStr(textY, "CALIBRATION");
+  }
   u8g2.setFont(u8g2_font_open_iconic_arrow_2x_t);
   if (menuIndex > 0)
     u8g2.drawGlyph(6, iconY + 5, 60);
@@ -328,6 +368,19 @@ void drawSubmenuScreen()
   }
 }
 
+void drawCalibrationScreen() {
+    u8g2.setFont(u8g2_font_ncenB10_tr);
+    drawCenteredStr(30, "CALIBRATION");
+    
+    char buf[32];
+    sprintf(buf, "PRESS BTN %d", calibStep + 1);
+    u8g2.setFont(u8g2_font_ncenB14_tr);
+    drawCenteredStr(70, buf);
+    
+    u8g2.setFont(u8g2_font_6x10_tr);
+    drawCenteredStr(100, "(Scan Matrix)");
+}
+
 void updateDisplay()
 {
   u8g2.firstPage();
@@ -339,6 +392,8 @@ void updateDisplay()
       drawMenuScreen();
     else if (currentState == STATE_SUBMENU)
       drawSubmenuScreen();
+    else if (currentState == STATE_CALIBRATION)
+      drawCalibrationScreen();
   } while (u8g2.nextPage());
 }
 
@@ -401,7 +456,6 @@ void readExtModule()
     if (digitalRead(EXT_A3) == LOW) { strcpy(extAction, "Ext Btn 4"); extBtnStates[3] = 1; }
 
     // Buttons 5-6 (Analog, External Pullup 20k to 5V, Button to GND)
-    // Pressed = Voltage drops near 0. Unpressed = 5V (~1023). Threshold 500.
     if (analogRead(EXT_A6) < 500) { strcpy(extAction, "Ext Btn 5"); extBtnStates[4] = 1; }
     if (analogRead(EXT_A7) < 500) { strcpy(extAction, "Ext Btn 6"); extBtnStates[5] = 1; }
   }
@@ -435,6 +489,64 @@ void loop()
   bool update = false;
   unsigned long now = millis();
 
+  // MATRIX SCANNING LOGIC WITH CALIBRATION SUPPORT
+  matrixActive = false;
+  
+  // We scan matrix *always* to detect presses for calibration or normal usage
+  // Temporarily store which physical button is pressed
+  int pressedPhysicalId = -1;
+
+  for (int r = 0; r < 3; r++)
+  {
+      digitalWrite(rows[r], LOW);
+      for (int c = 0; c < 3; c++)
+      {
+        if (digitalRead(cols[c]) == LOW)
+        {
+           pressedPhysicalId = (c * 3) + r;
+           matrixActive = true;
+        }
+      }
+      digitalWrite(rows[r], HIGH);
+  }
+
+  // --- CALIBRATION LOGIC ---
+  if (currentState == STATE_CALIBRATION) {
+      if (pressedPhysicalId != -1) {
+          if (!calibWaitingRelease) {
+             // Register Mapping
+             // We map this Physical ID -> Current Logical Step
+             btnMap[pressedPhysicalId] = calibStep;
+             
+             // Move to next step
+             calibStep++;
+             calibWaitingRelease = true; // Wait for release before accepting next
+             update = true;
+             
+             if (calibStep >= 9) {
+                 // Done
+                 saveBtnMap();
+                 currentState = STATE_MENU;
+                 menuIndex = 0; // Go to exit
+             }
+          }
+      } else {
+          // Button released
+          calibWaitingRelease = false;
+      }
+      
+      // Handle Encoder to Exit?
+      // Optional: Click encoder to abort
+      if (digitalRead(PIN_ENC_SW) == LOW) {
+           // Simple debounce could go here, but for now strict checking
+      }
+      
+      if (update) updateDisplay();
+      return; // Skip the rest of loop in calibration mode
+  }
+  
+  // --- NORMAL LOOP ---
+
   if (digitalRead(PIN_ENC_SW) == LOW)
   {
     if (!btnPressed)
@@ -455,64 +567,66 @@ void loop()
   {
     if (btnPressed)
     {
-      if (!longPressTriggered)
-      {
-        if (currentState == STATE_DEFAULT)
-        {
-          strcpy(mainAction, "Enc Click");
-          lastActionTime = now;
-          update = true;
-        }
-        else if (currentState == STATE_MENU)
-        {
-          if (menuIndex == 0)
+       if (!longPressTriggered)
+       {
+          if (currentState == STATE_DEFAULT)
           {
-            currentState = STATE_DEFAULT;
-            update = true;
+             strcpy(mainAction, "Enc Click");
+             lastActionTime = now;
+             update = true;
           }
-          else
+          else if (currentState == STATE_MENU)
           {
-            currentState = STATE_SUBMENU;
-            if (menuIndex == 1)
-            {
-              submenuMaxItems = 4;
-              submenuIndex = (int)currentHomeMode;
-            }
-            else if (menuIndex == 2)
-            {
-              submenuMaxItems = 4;
-              submenuIndex = (int)currentModule;
-            }
-            else if (menuIndex == 3)
-            {
-              submenuMaxItems = 2;
-              submenuIndex = backlightEnabled ? 0 : 1;
-            }
-            update = true;
+             if (menuIndex == 0) { currentState = STATE_DEFAULT; update = true; }
+             else if (menuIndex == 1) { 
+                 // Home actions
+                 currentState = STATE_SUBMENU; 
+                 submenuMaxItems=4; 
+                 submenuIndex=(int)currentHomeMode; 
+                 update = true;
+             }
+             else if (menuIndex == 2) { 
+                 currentState = STATE_SUBMENU; 
+                 submenuMaxItems=4; 
+                 submenuIndex=(int)currentModule; 
+                 update = true;
+             }
+             else if (menuIndex == 3) { 
+                 currentState = STATE_SUBMENU; 
+                 submenuMaxItems=2; 
+                 submenuIndex=backlightEnabled?0:1; 
+                 update = true;
+             }
+             else if (menuIndex == 4) { 
+                 currentState = STATE_CALIBRATION; 
+                 calibStep = 0; 
+                 calibWaitingRelease = true; // wait for release of any btn
+                 update = true; 
+             } 
           }
-        }
-        else if (currentState == STATE_SUBMENU)
-        {
-          if (menuIndex == 1)
-            currentHomeMode = (HomeMode)submenuIndex;
-          else if (menuIndex == 2)
+          else if (currentState == STATE_SUBMENU)
           {
-            currentModule = (ModuleType)submenuIndex;
-            setupExtModule();
+              if (menuIndex == 1)
+                currentHomeMode = (HomeMode)submenuIndex;
+              else if (menuIndex == 2)
+              {
+                currentModule = (ModuleType)submenuIndex;
+                setupExtModule();
+              }
+              else if (menuIndex == 3)
+              {
+                backlightEnabled = (submenuIndex == 0);
+              }
+              saveSettings();
+              currentState = STATE_MENU;
+              update = true;
           }
-          else if (menuIndex == 3)
-          {
-            backlightEnabled = (submenuIndex == 0);
-          }
-          saveSettings();
-          currentState = STATE_MENU;
-          update = true;
-        }
-      }
-      btnPressed = false;
+       }
+       btnPressed = false;
     }
   }
 
+  // Encoder Rotation
   long diff = encoderValue - lastEncoderValue;
   if (currentState == STATE_DEFAULT && diff != 0)
   {
@@ -523,128 +637,89 @@ void loop()
   }
   else if (currentState != STATE_DEFAULT && abs(diff) >= MENU_ENC_SENSITIVITY)
   {
-    int dir = (diff > 0) ? 1 : -1;
-    if (currentState == STATE_MENU)
-    {
-      if (dir > 0)
-      {
-        menuIndex++;
-        if (menuIndex >= MENU_ITEMS)
-          menuIndex = 0;
+      int dir = (diff > 0) ? 1 : -1;
+      if (currentState == STATE_MENU) {
+          menuIndex += dir;
+          if (menuIndex >= MENU_ITEMS) menuIndex = 0;
+          if (menuIndex < 0) menuIndex = MENU_ITEMS - 1;
+      } else {
+          submenuIndex += dir;
+          if (submenuIndex >= submenuMaxItems) submenuIndex = 0;
+          if (submenuIndex < 0) submenuIndex = submenuMaxItems - 1;
       }
-      else
-      {
-        menuIndex--;
-        if (menuIndex < 0)
-          menuIndex = MENU_ITEMS - 1;
-      }
-    }
-    else
-    {
-      if (dir > 0)
-      {
-        submenuIndex++;
-        if (submenuIndex >= submenuMaxItems)
-          submenuIndex = 0;
-      }
-      else
-      {
-        submenuIndex--;
-        if (submenuIndex < 0)
-          submenuIndex = submenuMaxItems - 1;
-      }
-    }
-    lastEncoderValue = encoderValue;
-    update = true;
+      lastEncoderValue = encoderValue;
+      update = true;
   }
 
-  matrixActive = false;
+  // --- OUTPUT GENERATION (DEFAULT STATE) ---
   if (currentState == STATE_DEFAULT)
   {
-    // Reset array main buttons
-    for (int i = 0; i < 9; i++)
-      mainBtnStates[i] = 0;
-
-    char prevExt[24];
-    strcpy(prevExt, extAction);
-    bool prevConn = moduleConnected;
-    readExtModule();
-    if (strcmp(prevExt, extAction) != 0 || prevConn != moduleConnected)
-      update = true;
-
-    for (int r = 0; r < 3; r++)
-    {
+     // Reset keys
+     for(int i=0; i<9; i++) mainBtnStates[i] = 0;
+     
+     // USE MAPPING: Scan -> p_id -> btnMap[p_id] -> mainBtnStates
+     // Re-scan matrix for logic safety (or reuse pressedPhysicalId from start of loop)
+     // To be robust against bouncing, we use the same scan logic we did at start of loop 
+     // but we need to iterate all rows/cols again if we didn't save full state.
+     
+     matrixActive = false;
+     for (int r = 0; r < 3; r++)
+     {
       digitalWrite(rows[r], LOW);
       for (int c = 0; c < 3; c++)
       {
         if (digitalRead(cols[c]) == LOW)
         {
-          int btnId = (c * 3) + r;
-          mainBtnStates[btnId] = 1; // Save for Serial
-
-          sprintf(mainAction, "BTN %d", btnId + 1);
+          int p_id = (c * 3) + r;
+          int mapped_id = btnMap[p_id];
+          
+          if(mapped_id >= 0 && mapped_id < 9) {
+             mainBtnStates[mapped_id] = 1; 
+             sprintf(mainAction, "BTN %d", mapped_id + 1);
+          }
+          
           lastActionTime = now;
           matrixActive = true;
           update = true;
         }
       }
       digitalWrite(rows[r], HIGH);
-    }
+     }
+     
+     if (!matrixActive && strcmp(mainAction, "Ready") != 0)
+     {
+       if (now - lastActionTime > 500)
+       {
+         strcpy(mainAction, "Ready");
+         update = true;
+       }
+     }
+     
+     // Ext Module Read
+     char prevExt[24];
+     strcpy(prevExt, extAction);
+     bool prevConn = moduleConnected;
+     readExtModule();
+     if (strcmp(prevExt, extAction) != 0 || prevConn != moduleConnected) update = true;
 
-    if (!matrixActive && strcmp(mainAction, "Ready") != 0)
-    {
-      if (now - lastActionTime > 500)
-      {
-        strcpy(mainAction, "Ready");
-        update = true;
-      }
-    }
-
-    // --- SERIAL OUTPUT ---
-    // 1. Main 9 Buttons
-    for (int i = 0; i < 9; i++)
-    {
-      Serial.print(mainBtnStates[i]);
-      Serial.print(";");
-    }
-    // 2. Enc Click (Inverted logic: LOW=Pressed=1)
-    Serial.print(!digitalRead(PIN_ENC_SW));
-    Serial.print(";");
-    // 3. Enc Value
-    Serial.print(encoderValue);
-    Serial.print(";");
-    // 4. Module ID
-    Serial.print((int)currentModule);
-
-    // 5. Module Data (if any)
-    if (currentModule != MOD_NONE)
-    {
-      Serial.print(";");
-      if (currentModule == MOD_EXT_BTNS)
-      {
-        // 6 Buttons States (4 real + 2 dummies)
-        for (int i = 0; i < 6; i++)
-        {
-          Serial.print(extBtnStates[i]);
-          if (i < 5)
-            Serial.print(";");
-        }
-      }
-      else
-      {
-        // Sliders/Knobs Values
-        Serial.print(serVal1);
+     // SERIAL PRINTS
+     for (int i = 0; i < 9; i++) { Serial.print(mainBtnStates[i]); Serial.print(";"); }
+     Serial.print(!digitalRead(PIN_ENC_SW)); Serial.print(";");
+     Serial.print(encoderValue); Serial.print(";");
+     Serial.print((int)currentModule);
+     if (currentModule != MOD_NONE) {
         Serial.print(";");
-        Serial.print(serVal2);
-      }
-    }
-    Serial.println();
+        if (currentModule == MOD_EXT_BTNS) {
+           for(int i=0; i<6; i++) { Serial.print(extBtnStates[i]); if(i<5) Serial.print(";"); }
+        } else {
+           Serial.print(serVal1); Serial.print(";"); Serial.print(serVal2);
+        }
+     }
+     Serial.println();
   }
 
-  if (backlightEnabled)
-    digitalWrite(PIN_LED, HIGH);
-  else
-    digitalWrite(PIN_LED, matrixActive ? HIGH : LOW);
-  if (update)
-    updateDisplay();
+  if (backlightEnabled) digitalWrite(PIN_LED, HIGH);
+  else digitalWrite(PIN_LED, matrixActive ? HIGH : LOW);
+  
+  if (update) updateDisplay();
 }

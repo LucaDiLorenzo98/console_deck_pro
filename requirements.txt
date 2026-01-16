@@ -1,6 +1,0 @@
-pyserial
-pyautogui
-screen_brightness_control
-pycaw
-comtypes
-

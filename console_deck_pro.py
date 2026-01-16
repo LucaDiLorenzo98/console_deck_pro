@@ -5,47 +5,11 @@ import webbrowser
 import subprocess
 import pyautogui
 import screen_brightness_control as sbc
-from ctypes import cast, POINTER
-from comtypes import CLSCTX_ALL, CoInitialize
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 import os
 import sys
 
 # Configuration
 CONFIG_FILE = 'config.json'
-
-# Global Audio Interface
-volume_interface = None
-
-def init_audio():
-    global volume_interface
-    try:
-        # CoInitialize is needed for some environments, though often optional in main thread
-        CoInitialize()
-        devices = AudioUtilities.GetSpeakers()
-        # Debug: Print available methods to troubleshoot 'Activate' missing
-        # print(f"[DEBUG] AudioDevice methods: {dir(devices)}")
-        
-        # Pycaw 2025+ might have changed API or it's a specific Windows issue
-        # Try accessing the interface directly if Activate fails
-        if hasattr(devices, 'Activate'):
-            interface = devices.Activate(
-                IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-        else:
-            # Fallback for some versions/systems
-            from comtypes import GUID
-            CLSID_MMDeviceEnumerator = GUID('{BCDE0395-E52F-467C-8E3D-C4579291692E}')
-            IID_IMMDeviceEnumerator = GUID('{A95664D2-9614-4F35-A746-DE8DB63617E6}')
-            
-            # This is a deeper fallback if the high-level wrapper fails
-            # But for now, let's just try to catch it gracefully
-            print("[ERROR] AudioDevice missing 'Activate'. Absolute volume disabled.")
-            return
-
-        volume_interface = cast(interface, POINTER(IAudioEndpointVolume))
-        print("[INFO] Audio Interface Initialized Successfully")
-    except Exception as e:
-        print(f"[ERROR] Failed to init audio: {e}")
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -58,7 +22,7 @@ def load_config():
         print(f"Error parsing {CONFIG_FILE}: {e}")
         return None
 
-def execute_action(action_def, absolute_value=None):
+def execute_action(action_def, absolute_value=None, multiplier=1):
     if not action_def:
         return
 
@@ -97,12 +61,25 @@ def execute_action(action_def, absolute_value=None):
             except Exception as e:
                 print(f"     [ERROR] Brightness control failed: {e}")
         elif action_type == 'set_volume':
-            if volume_interface:
-                vol_scalar = max(0.0, min(1.0, float(value) / 100.0))
-                volume_interface.SetMasterVolumeLevelScalar(vol_scalar, None)
-                print(f"     Set Volume: {int(vol_scalar*100)}%")
-            else:
-                print("     [ERROR] Volume Interface not initialized.")
+            # Absolute volume not easily supported via keys
+            print("     [WARNING] 'set_volume' (absolute) is not supported without pycaw. Using rough approximation or ignored.")
+            
+        elif action_type == 'toggle_mute':
+            pyautogui.press('volumemute')
+            print("     Toggled Mute")
+
+        elif action_type == 'change_volume':
+             # Simplified key-based control
+             # multiplier coming from encoder diff / 2.0
+             # We round it to nearest int to get number of key presses
+             
+             key = 'volumeup' if float(value) > 0 else 'volumedown'
+             count = int(round(abs(float(value)) * multiplier))
+             if count < 1: count = 1
+             
+             print(f"     Change Volume: {key} x {count}")
+             for _ in range(count):
+                 pyautogui.press(key)
         elif action_type == 'set_brightness':
             try:
                 sbc.set_brightness(int(value))
@@ -115,7 +92,7 @@ def execute_action(action_def, absolute_value=None):
         print(f"     [ERROR] Failed to execute action: {e}")
 
 def main():
-    init_audio()
+    # init_audio() removed
     config = load_config()
     if not config:
         return
@@ -142,6 +119,10 @@ def main():
     prev_ext_btns = [0] * 6
     prev_slider_vals = [None, None]
     prev_knob_vals = [None, None]
+    
+    # State for Encoder Long Press
+    enc_press_start_time = None
+    enc_long_press_triggered = False
 
     try:
         while True:
@@ -178,19 +159,48 @@ def main():
                             execute_action(config['mappings'].get(btn_key))
                     prev_main_btns = current_main_btns
 
-                    if current_enc_click == 1 and prev_enc_click == 0:
-                        print(f"[EVENT] Encoder Clicked")
-                        execute_action(config['mappings'].get('enc_click'))
+                    # Encoder Button Logic (Short vs Long Press)
+                    if current_enc_click == 1:
+                        if prev_enc_click == 0:
+                            # Rising Edge: Start Timer
+                            enc_press_start_time = time.time()
+                            enc_long_press_triggered = False
+                        else:
+                            # Button Held: Check for Long Press
+                            if not enc_long_press_triggered and (time.time() - enc_press_start_time > 0.8):
+                                print(f"[EVENT] Encoder Long Press (System Menu)")
+                                # System Menu is handled by hardware/firmware or just ignored by Python
+                                enc_long_press_triggered = True
+                                
+                    elif current_enc_click == 0 and prev_enc_click == 1:
+                        # Falling Edge: Check if it was a short click
+                        if not enc_long_press_triggered:
+                            print(f"[EVENT] Encoder Clicked (Short)")
+                            execute_action(config['mappings'].get('enc_click'))
+                        
+                        enc_press_start_time = None
+                        
                     prev_enc_click = current_enc_click
 
                     if prev_enc_val is not None:
                         diff = current_enc_val - prev_enc_val
+                        
+                        # 1 Physical Detent = 2 Logical Steps on this Arduino Logic
+                        # So we divide by 2.0 to get "Physical Detents"
+                        multiplier = abs(diff) / 2.0
+                        
+                        # Minimal threshold: if multiplier is 0 (diff=0), skip. 
+                        # But diff is != 0 here per logic. 
+                        # If diff is 1, multiplier is 0.5. We accept that for fine control or accumulation?
+                        # User wants 1:1. 
+                        # If diff is always 2, multiplier becomes 1.0. Perfect.
+                        
                         if diff > 0:
-                            print(f"[EVENT] Encoder Rotated CW")
-                            execute_action(config['mappings'].get('enc_cw'))
+                            print(f"[EVENT] Encoder Rotated CW (x{multiplier})")
+                            execute_action(config['mappings'].get('enc_cw'), multiplier=multiplier)
                         elif diff < 0:
-                            print(f"[EVENT] Encoder Rotated CCW")
-                            execute_action(config['mappings'].get('enc_ccw'))
+                            print(f"[EVENT] Encoder Rotated CCW (x{multiplier})")
+                            execute_action(config['mappings'].get('enc_ccw'), multiplier=multiplier)
                     prev_enc_val = current_enc_val
 
                     if module_id == 1: # Buttons
