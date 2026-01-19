@@ -582,7 +582,27 @@ class _ModulesPageState extends State<ModulesPage> {
         _moduleConfigs[moduleIndex]?[hotspot.id] ??
         {'type': hotspot.defaultType, 'value': hotspot.defaultValue ?? ''};
 
-    String selectedType = currentConfig['type'] ?? 'Link';
+    String selectedType = currentConfig['type'] ?? 'None';
+
+    // Determine available types based on module
+    final bool isAnalog = module.id == 'sliders' || module.id == 'knobs';
+    final bool isModelingRestricted =
+        module.id == 'modeling' &&
+        ['mod_rect1', 'mod_rect2', 'mod_circ'].contains(hotspot.id);
+
+    final List<String> availableTypes;
+    if (isModelingRestricted) {
+      availableTypes = ['None', 'Hotkey'];
+    } else if (isAnalog) {
+      availableTypes = ['None', 'Volume', 'Brightness'];
+    } else {
+      availableTypes = ['None', 'Link', 'App', 'Hotkey'];
+    }
+
+    // Ensure selectedType is valid for this specific hotspot
+    if (!availableTypes.contains(selectedType)) {
+      selectedType = 'None';
+    }
 
     final TextEditingController linkController = TextEditingController(
       text: selectedType == 'Link' ? currentConfig['value'] : '',
@@ -604,41 +624,58 @@ class _ModulesPageState extends State<ModulesPage> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: Text(
-                AppStrings.get(currentLocale, AppKeys.configureButton),
+                '${AppStrings.get(currentLocale, AppKeys.configureButton)} ${hotspot.id}', // Use hotspot name or ID
               ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButton<String>(
-                      value: selectedType,
+                      value: availableTypes.contains(selectedType)
+                          ? selectedType
+                          : 'None',
                       isExpanded: true,
-                      items: <String>['Link', 'App', 'Hotkey']
-                          .map<DropdownMenuItem<String>>((String value) {
-                            String label = value;
-                            if (value == 'Link') {
-                              label = AppStrings.get(
-                                currentLocale,
-                                AppKeys.typeLink,
-                              );
-                            } else if (value == 'App') {
-                              label = AppStrings.get(
-                                currentLocale,
-                                AppKeys.typeApp,
-                              );
-                            } else if (value == 'Hotkey') {
-                              label = AppStrings.get(
-                                currentLocale,
-                                AppKeys.typeHotkey,
-                              );
-                            }
+                      items: availableTypes.map<DropdownMenuItem<String>>((
+                        String value,
+                      ) {
+                        String label = value;
+                        if (value == 'None') {
+                          label = AppStrings.get(
+                            currentLocale,
+                            AppKeys.typeNone,
+                          );
+                        } else if (value == 'Link') {
+                          label = AppStrings.get(
+                            currentLocale,
+                            AppKeys.typeLink,
+                          );
+                        } else if (value == 'App') {
+                          label = AppStrings.get(
+                            currentLocale,
+                            AppKeys.typeApp,
+                          );
+                        } else if (value == 'Hotkey') {
+                          label = AppStrings.get(
+                            currentLocale,
+                            AppKeys.typeHotkey,
+                          );
+                        } else if (value == 'Volume') {
+                          label = AppStrings.get(
+                            currentLocale,
+                            AppKeys.actionVolume,
+                          );
+                        } else if (value == 'Brightness') {
+                          label = AppStrings.get(
+                            currentLocale,
+                            AppKeys.actionBrightness,
+                          );
+                        }
 
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(label),
-                            );
-                          })
-                          .toList(),
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(label),
+                        );
+                      }).toList(),
                       onChanged: (String? newValue) {
                         if (newValue != null) {
                           setDialogState(() {
@@ -648,67 +685,73 @@ class _ModulesPageState extends State<ModulesPage> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    if (selectedType == 'Link')
-                      TextField(
-                        controller: linkController,
-                        decoration: InputDecoration(
-                          labelText: AppStrings.get(currentLocale, AppKeys.url),
-                          hintText: AppStrings.get(
-                            currentLocale,
-                            AppKeys.urlHint,
+                    // Only show extra fields for Standard modules
+                    if (!isAnalog) ...[
+                      if (selectedType == 'Link')
+                        TextField(
+                          controller: linkController,
+                          decoration: InputDecoration(
+                            labelText: AppStrings.get(
+                              currentLocale,
+                              AppKeys.url,
+                            ),
+                            hintText: AppStrings.get(
+                              currentLocale,
+                              AppKeys.urlHint,
+                            ),
+                            border: const OutlineInputBorder(),
                           ),
-                          border: const OutlineInputBorder(),
                         ),
-                      ),
-                    if (selectedType == 'App')
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: appController,
-                              readOnly: true,
-                              decoration: InputDecoration(
-                                labelText: AppStrings.get(
-                                  currentLocale,
-                                  AppKeys.executablePath,
+                      if (selectedType == 'App')
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: appController,
+                                readOnly: true,
+                                decoration: InputDecoration(
+                                  labelText: AppStrings.get(
+                                    currentLocale,
+                                    AppKeys.executablePath,
+                                  ),
+                                  border: const OutlineInputBorder(),
                                 ),
-                                border: const OutlineInputBorder(),
                               ),
                             ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.folder_open),
-                            onPressed: () async {
-                              FilePickerResult? result = await FilePicker
-                                  .platform
-                                  .pickFiles(
-                                    type: FileType.custom,
-                                    allowedExtensions: ['exe', 'bat', 'cmd'],
-                                  );
+                            IconButton(
+                              icon: const Icon(Icons.folder_open),
+                              onPressed: () async {
+                                FilePickerResult? result = await FilePicker
+                                    .platform
+                                    .pickFiles(
+                                      type: FileType.custom,
+                                      allowedExtensions: ['exe', 'bat', 'cmd'],
+                                    );
 
-                              if (result != null) {
-                                selectedAppPath = result.files.single.path;
-                                appController.text = selectedAppPath!;
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    if (selectedType == 'Hotkey')
-                      TextField(
-                        controller: hotkeyController,
-                        decoration: InputDecoration(
-                          labelText: AppStrings.get(
-                            currentLocale,
-                            AppKeys.hotkeyCombo,
-                          ),
-                          hintText: AppStrings.get(
-                            currentLocale,
-                            AppKeys.hotkeyHint,
-                          ),
-                          border: const OutlineInputBorder(),
+                                if (result != null) {
+                                  selectedAppPath = result.files.single.path;
+                                  appController.text = selectedAppPath!;
+                                }
+                              },
+                            ),
+                          ],
                         ),
-                      ),
+                      if (selectedType == 'Hotkey')
+                        TextField(
+                          controller: hotkeyController,
+                          decoration: InputDecoration(
+                            labelText: AppStrings.get(
+                              currentLocale,
+                              AppKeys.hotkeyCombo,
+                            ),
+                            hintText: AppStrings.get(
+                              currentLocale,
+                              AppKeys.hotkeyHint,
+                            ),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),

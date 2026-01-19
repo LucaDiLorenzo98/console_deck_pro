@@ -20,6 +20,7 @@ class MainApp extends StatelessWidget {
           valueListenable: localeNotifier,
           builder: (context, currentLocale, child) {
             return MaterialApp(
+              title: 'Console Deck PRO',
               debugShowCheckedModeBanner: false,
               theme: ThemeData.light(useMaterial3: true),
               darkTheme: ThemeData.dark(useMaterial3: true),

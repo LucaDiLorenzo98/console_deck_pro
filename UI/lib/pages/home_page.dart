@@ -16,7 +16,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _showActionDialog(int index) async {
     final currentLocale = Localizations.localeOf(context);
-    String selectedType = _buttonConfigs[index]?['type'] ?? 'Link';
+    String selectedType = _buttonConfigs[index]?['type'] ?? 'None';
     final String? currentValue = _buttonConfigs[index]?['value'];
 
     final TextEditingController linkController = TextEditingController(
@@ -47,10 +47,15 @@ class _HomePageState extends State<HomePage> {
                     DropdownButton<String>(
                       value: selectedType,
                       isExpanded: true,
-                      items: <String>['Link', 'App', 'Hotkey']
+                      items: <String>['None', 'Link', 'App', 'Hotkey']
                           .map<DropdownMenuItem<String>>((String value) {
                             String label = value;
-                            if (value == 'Link') {
+                            if (value == 'None') {
+                              label = AppStrings.get(
+                                currentLocale,
+                                AppKeys.typeNone,
+                              );
+                            } else if (value == 'Link') {
                               label = AppStrings.get(
                                 currentLocale,
                                 AppKeys.typeLink,
@@ -146,6 +151,7 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
+
               actions: [
                 TextButton(
                   child: Text(AppStrings.get(currentLocale, AppKeys.cancel)),

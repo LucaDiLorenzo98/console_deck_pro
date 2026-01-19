@@ -14,9 +14,12 @@ class AppKeys {
 
   // Dialogs & Interactions
   static const String configureButton = 'configure_button';
+  static const String typeNone = 'type_none';
   static const String typeLink = 'type_link';
   static const String typeApp = 'type_app';
   static const String typeHotkey = 'type_hotkey';
+  static const String actionVolume = 'action_volume';
+  static const String actionBrightness = 'action_brightness';
   static const String url = 'url';
   static const String urlHint = 'url_hint';
   static const String executablePath = 'executable_path';
@@ -68,9 +71,12 @@ class AppStrings {
       AppKeys.magnetTooltip: 'Magnetic Connector.\nAttach modules here.',
       AppKeys.appVersion: 'Console Deck PRO',
       AppKeys.configureButton: 'Configure Button',
+      AppKeys.typeNone: 'None',
       AppKeys.typeLink: 'Link',
       AppKeys.typeApp: 'App',
       AppKeys.typeHotkey: 'Hotkey',
+      AppKeys.actionVolume: 'Volume',
+      AppKeys.actionBrightness: 'Brightness',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://example.com',
       AppKeys.executablePath: 'Executable Path',
