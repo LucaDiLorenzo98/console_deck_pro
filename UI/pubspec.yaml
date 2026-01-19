@@ -1,7 +1,7 @@
 name: console_deck_ui
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.0
 
 environment:
   sdk: ^3.10.7
@@ -23,8 +23,10 @@ dev_dependencies:
   flutter_launcher_icons: ^0.13.1
 
 flutter_launcher_icons:
-  image_path: "assets/images/console_deck_pro_front.png"
-  windows: true
+  windows:
+    generate: true
+    image_path: "assets/images/console_cover.png"
+    icon_size: 256
 
 flutter:
   uses-material-design: true
