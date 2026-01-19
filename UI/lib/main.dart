@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:console_deck_ui/home.dart';
 import 'theme_state.dart';
 import 'locale_state.dart';
@@ -24,6 +25,20 @@ class MainApp extends StatelessWidget {
               darkTheme: ThemeData.dark(useMaterial3: true),
               themeMode: currentThemeMode,
               locale: currentLocale,
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [
+                Locale('en'),
+                Locale('it'),
+                Locale('es'),
+                Locale('fr'),
+                Locale('de'),
+                Locale('zh'),
+                Locale('ja'),
+              ],
               home: const HomeScreen(),
             );
           },

@@ -25,6 +25,32 @@ class AppKeys {
   static const String cancel = 'cancel';
   static const String save = 'save';
   static const String modulesPageTitle = 'modules_page_title';
+  static const String selectModuleHint = 'select_module_hint';
+
+  // Module Names
+  static const String moduleMedia = 'module_media';
+  static const String moduleKnobs = 'module_knobs';
+  static const String moduleSliders = 'module_sliders';
+  static const String moduleTouch = 'module_touch';
+  static const String moduleSwitch = 'module_switch';
+  static const String moduleExtendedBtn = 'module_extended_btn';
+  static const String modulePiano = 'module_piano';
+  static const String moduleModeling = 'module_modeling';
+
+  // Media Module Actions
+  static const String mediaPlayPause = 'media_play_pause';
+  static const String mediaNext = 'media_next';
+  static const String mediaPrev = 'media_prev';
+  static const String mediaVolUp = 'media_vol_up';
+  static const String mediaVolDown = 'media_vol_down';
+
+  // Settings Links
+  static const String visitWebsite = 'visit_website';
+  static const String visitMakerWorld = 'visit_makerworld';
+  static const String socialNetworks = 'social_networks';
+  static const String reportProblem = 'report_problem';
+  static const String reportSubject = 'report_subject';
+  static const String reportBodyPrototype = 'report_body_prototype';
 }
 
 class AppStrings {
@@ -53,6 +79,26 @@ class AppStrings {
       AppKeys.cancel: 'Cancel',
       AppKeys.save: 'Save',
       AppKeys.modulesPageTitle: 'Modules Page',
+      AppKeys.selectModuleHint: 'Select a module to configure',
+      AppKeys.moduleMedia: 'Media',
+      AppKeys.moduleKnobs: 'Knobs',
+      AppKeys.moduleSliders: 'Sliders',
+      AppKeys.moduleTouch: 'Touch',
+      AppKeys.moduleSwitch: 'Switches',
+      AppKeys.moduleExtendedBtn: 'Extended Buttons',
+      AppKeys.modulePiano: 'Piano',
+      AppKeys.moduleModeling: 'Modeling',
+      AppKeys.mediaPlayPause: 'Play/Pause',
+      AppKeys.mediaNext: 'Next Track',
+      AppKeys.mediaPrev: 'Previous Track',
+      AppKeys.mediaVolUp: 'Volume Up',
+      AppKeys.mediaVolDown: 'Volume Down',
+      AppKeys.visitWebsite: 'Visit Website',
+      AppKeys.visitMakerWorld: 'Visit MakerWorld',
+      AppKeys.socialNetworks: 'Social Networks',
+      AppKeys.reportProblem: 'Report a Problem',
+      AppKeys.reportSubject: 'Console Deck PRO Report Issue',
+      AppKeys.reportBodyPrototype: 'Issue Description: ',
     },
     'it': {
       AppKeys.home: 'Home',
@@ -79,6 +125,26 @@ class AppStrings {
       AppKeys.cancel: 'Annulla',
       AppKeys.save: 'Salva',
       AppKeys.modulesPageTitle: 'Pagina Moduli',
+      AppKeys.selectModuleHint: 'Seleziona un modulo per configurarlo',
+      AppKeys.moduleMedia: 'Media',
+      AppKeys.moduleKnobs: 'Manopole',
+      AppKeys.moduleSliders: 'Slider',
+      AppKeys.moduleTouch: 'Touch',
+      AppKeys.moduleSwitch: 'Interruttori',
+      AppKeys.moduleExtendedBtn: 'Pulsanti Estesi',
+      AppKeys.modulePiano: 'Piano',
+      AppKeys.moduleModeling: 'Modellazione',
+      AppKeys.mediaPlayPause: 'Play/Pausa',
+      AppKeys.mediaNext: 'Traccia Successiva',
+      AppKeys.mediaPrev: 'Traccia Precedente',
+      AppKeys.mediaVolUp: 'Volume Su',
+      AppKeys.mediaVolDown: 'Volume Giù',
+      AppKeys.visitWebsite: 'Visita il Sito',
+      AppKeys.visitMakerWorld: 'Visita MakerWorld',
+      AppKeys.socialNetworks: 'Social Network',
+      AppKeys.reportProblem: 'Segnala un Problema',
+      AppKeys.reportSubject: 'Segnalazione Problema Console Deck PRO',
+      AppKeys.reportBodyPrototype: 'Descrizione del problema: ',
     },
     'es': {
       AppKeys.home: 'Inicio',
@@ -105,6 +171,26 @@ class AppStrings {
       AppKeys.cancel: 'Cancelar',
       AppKeys.save: 'Guardar',
       AppKeys.modulesPageTitle: 'Página de Módulos',
+      AppKeys.selectModuleHint: 'Selecciona un módulo para configurar',
+      AppKeys.moduleMedia: 'Multimedia',
+      AppKeys.moduleKnobs: 'Perillas',
+      AppKeys.moduleSliders: 'Deslizadores',
+      AppKeys.moduleTouch: 'Táctil',
+      AppKeys.moduleSwitch: 'Interruptores',
+      AppKeys.moduleExtendedBtn: 'Botones Extendidos',
+      AppKeys.modulePiano: 'Piano',
+      AppKeys.moduleModeling: 'Modelado',
+      AppKeys.mediaPlayPause: 'Reproducir/Pausar',
+      AppKeys.mediaNext: 'Siguiente Pista',
+      AppKeys.mediaPrev: 'Pista Anterior',
+      AppKeys.mediaVolUp: 'Subir Volumen',
+      AppKeys.mediaVolDown: 'Bajar Volumen',
+      AppKeys.visitWebsite: 'Visitar Sitio Web',
+      AppKeys.visitMakerWorld: 'Visitar MakerWorld',
+      AppKeys.socialNetworks: 'Redes Sociales',
+      AppKeys.reportProblem: 'Reportar Problema',
+      AppKeys.reportSubject: 'Reporte de Problema Console Deck PRO',
+      AppKeys.reportBodyPrototype: 'Descripción del problema: ',
     },
     'fr': {
       AppKeys.home: 'Accueil',
@@ -132,6 +218,26 @@ class AppStrings {
       AppKeys.cancel: 'Annuler',
       AppKeys.save: 'Sauvegarder',
       AppKeys.modulesPageTitle: 'Page Modules',
+      AppKeys.selectModuleHint: 'Sélectionnez un module à configurer',
+      AppKeys.moduleMedia: 'Média',
+      AppKeys.moduleKnobs: 'Boutons',
+      AppKeys.moduleSliders: 'Curseurs',
+      AppKeys.moduleTouch: 'Tactile',
+      AppKeys.moduleSwitch: 'Interrupteurs',
+      AppKeys.moduleExtendedBtn: 'Boutons Étendus',
+      AppKeys.modulePiano: 'Piano',
+      AppKeys.moduleModeling: 'Modélisation',
+      AppKeys.mediaPlayPause: 'Lecture/Pause',
+      AppKeys.mediaNext: 'Piste Suivante',
+      AppKeys.mediaPrev: 'Piste Précédente',
+      AppKeys.mediaVolUp: 'Volume +',
+      AppKeys.mediaVolDown: 'Volume -',
+      AppKeys.visitWebsite: 'Visiter le Site Web',
+      AppKeys.visitMakerWorld: 'Visiter MakerWorld',
+      AppKeys.socialNetworks: 'Réseaux Sociaux',
+      AppKeys.reportProblem: 'Signaler un Problème',
+      AppKeys.reportSubject: 'Problème Console Deck PRO',
+      AppKeys.reportBodyPrototype: 'Description du problème: ',
     },
     'de': {
       AppKeys.home: 'Startseite',
@@ -158,6 +264,26 @@ class AppStrings {
       AppKeys.cancel: 'Abbrechen',
       AppKeys.save: 'Speichern',
       AppKeys.modulesPageTitle: 'Modulseite',
+      AppKeys.selectModuleHint: 'Wählen Sie ein Modul zum Konfigurieren',
+      AppKeys.moduleMedia: 'Medien',
+      AppKeys.moduleKnobs: 'Drehregler',
+      AppKeys.moduleSliders: 'Schieberegler',
+      AppKeys.moduleTouch: 'Touch',
+      AppKeys.moduleSwitch: 'Schalter',
+      AppKeys.moduleExtendedBtn: 'Erweiterte Tasten',
+      AppKeys.modulePiano: 'Klavier',
+      AppKeys.moduleModeling: 'Modellierung',
+      AppKeys.mediaPlayPause: 'Wiedergabe/Pause',
+      AppKeys.mediaNext: 'Nächster Titel',
+      AppKeys.mediaPrev: 'Vorheriger Titel',
+      AppKeys.mediaVolUp: 'Lautstärke +',
+      AppKeys.mediaVolDown: 'Lautstärke -',
+      AppKeys.visitWebsite: 'Webseite Besuchen',
+      AppKeys.visitMakerWorld: 'Besuche MakerWorld',
+      AppKeys.socialNetworks: 'Soziale Netzwerke',
+      AppKeys.reportProblem: 'Problem Melden',
+      AppKeys.reportSubject: 'Console Deck PRO Problem',
+      AppKeys.reportBodyPrototype: 'Problembeschreibung: ',
     },
     'zh': {
       AppKeys.home: '首页',
@@ -182,6 +308,26 @@ class AppStrings {
       AppKeys.cancel: '取消',
       AppKeys.save: '保存',
       AppKeys.modulesPageTitle: '模块页面',
+      AppKeys.selectModuleHint: '选择要配置的模块',
+      AppKeys.moduleMedia: '媒体',
+      AppKeys.moduleKnobs: '旋钮',
+      AppKeys.moduleSliders: '滑块',
+      AppKeys.moduleTouch: '触摸',
+      AppKeys.moduleSwitch: '开关',
+      AppKeys.moduleExtendedBtn: '扩展按钮',
+      AppKeys.modulePiano: '钢琴',
+      AppKeys.moduleModeling: '建模',
+      AppKeys.mediaPlayPause: '播放/暂停',
+      AppKeys.mediaNext: '下一首',
+      AppKeys.mediaPrev: '上一首',
+      AppKeys.mediaVolUp: '音量 +',
+      AppKeys.mediaVolDown: '音量 -',
+      AppKeys.visitWebsite: '访问网站',
+      AppKeys.visitMakerWorld: '访问 MakerWorld',
+      AppKeys.socialNetworks: '社交网络',
+      AppKeys.reportProblem: '报告问题',
+      AppKeys.reportSubject: 'Console Deck PRO 问题报告',
+      AppKeys.reportBodyPrototype: '问题描述: ',
     },
     'ja': {
       AppKeys.home: 'ホーム',
@@ -206,6 +352,26 @@ class AppStrings {
       AppKeys.cancel: 'キャンセル',
       AppKeys.save: '保存',
       AppKeys.modulesPageTitle: 'モジュールページ',
+      AppKeys.selectModuleHint: '設定するモジュールを選択してください',
+      AppKeys.moduleMedia: 'メディア',
+      AppKeys.moduleKnobs: 'ノブ',
+      AppKeys.moduleSliders: 'スライダー',
+      AppKeys.moduleTouch: 'タッチ',
+      AppKeys.moduleSwitch: 'スイッチ',
+      AppKeys.moduleExtendedBtn: '拡張ボタン',
+      AppKeys.modulePiano: 'ピアノ',
+      AppKeys.moduleModeling: 'モデリング',
+      AppKeys.mediaPlayPause: '再生/一時停止',
+      AppKeys.mediaNext: '次のトラック',
+      AppKeys.mediaPrev: '前のトラック',
+      AppKeys.mediaVolUp: '音量アップ',
+      AppKeys.mediaVolDown: '音量ダウン',
+      AppKeys.visitWebsite: 'ウェブサイトへ',
+      AppKeys.visitMakerWorld: 'MakerWorldへ',
+      AppKeys.socialNetworks: 'ソーシャルネットワーク',
+      AppKeys.reportProblem: '問題を報告',
+      AppKeys.reportSubject: 'Console Deck PRO 問題報告',
+      AppKeys.reportBodyPrototype: '問題の説明: ',
     },
   };
 
