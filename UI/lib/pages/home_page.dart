@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../l10n/app_translations.dart';
+import '../services/config_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,6 +14,28 @@ class _HomePageState extends State<HomePage> {
   // Temporary storage for button configurations
   // Index -> {type, value}
   final Map<int, Map<String, String>> _buttonConfigs = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    final fullConfig = await ConfigService.loadConfig();
+    final mappings = fullConfig['mappings'] as Map<String, dynamic>? ?? {};
+
+    if (mounted) {
+      setState(() {
+        for (int i = 0; i < 9; i++) {
+          final key = 'btn_${i + 1}';
+          if (mappings.containsKey(key)) {
+            _buttonConfigs[i] = ConfigService.parseConfigEntry(mappings[key]);
+          }
+        }
+      });
+    }
+  }
 
   Future<void> _showActionDialog(int index) async {
     final currentLocale = Localizations.localeOf(context);
@@ -161,7 +184,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 TextButton(
                   child: Text(AppStrings.get(currentLocale, AppKeys.save)),
-                  onPressed: () {
+                  onPressed: () async {
                     String value = '';
                     if (selectedType == 'Link') value = linkController.text;
                     if (selectedType == 'App') value = appController.text;
@@ -173,7 +196,14 @@ class _HomePageState extends State<HomePage> {
                         'value': value,
                       };
                     });
-                    Navigator.of(context).pop();
+
+                    await ConfigService.saveMapping(
+                      'btn_${index + 1}',
+                      selectedType,
+                      value,
+                    );
+
+                    if (mounted) Navigator.of(context).pop();
                   },
                 ),
               ],

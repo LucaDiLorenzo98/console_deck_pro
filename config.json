@@ -42,10 +42,6 @@
             "action": "open_app",
             "value": "antigravity.exe"
         },
-        "btn_9": {
-            "action": "open_url",
-            "value": "https://mail.google.com"
-        },
         "enc_click": {
             "action": "toggle_mute",
             "value": null

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_translations.dart';
 import '../models/module_model.dart';
+import '../services/config_service.dart';
 import 'package:file_picker/file_picker.dart';
 
 class ModulesPage extends StatefulWidget {
@@ -16,7 +17,36 @@ class _ModulesPageState extends State<ModulesPage> {
   // Store configurations: moduleIndex -> hotspotId -> {type, value}
   final Map<int, Map<String, Map<String, String>>> _moduleConfigs = {};
 
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    final fullConfig = await ConfigService.loadConfig();
+    final mappings = fullConfig['mappings'] as Map<String, dynamic>? ?? {};
+
+    if (mounted) {
+      setState(() {
+        for (int mIndex = 0; mIndex < _modules.length; mIndex++) {
+          final module = _modules[mIndex];
+          for (final hotspot in module.hotspots) {
+            if (mappings.containsKey(hotspot.id)) {
+              if (_moduleConfigs[mIndex] == null) {
+                _moduleConfigs[mIndex] = {};
+              }
+              _moduleConfigs[mIndex]![hotspot.id] =
+                  ConfigService.parseConfigEntry(mappings[hotspot.id]);
+            }
+          }
+        }
+      });
+    }
+  }
+
   final List<ModuleConfig> _modules = const [
+    // ... existing modules ... (no change to this list, I'm just replacing top of file)
     ModuleConfig(
       id: 'extended_btn',
       nameKey: AppKeys.moduleExtendedBtn,
@@ -24,7 +54,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 2x3 Grid - 75x75, shifted slightly left
         ModuleHotspot(
-          id: 'btn1',
+          id: 'ext_btn_1',
           left: 160,
           top: 110,
           width: 75,
@@ -32,7 +62,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Button 1',
         ),
         ModuleHotspot(
-          id: 'btn2',
+          id: 'ext_btn_2',
           left: 250,
           top: 110,
           width: 75,
@@ -40,7 +70,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Button 2',
         ),
         ModuleHotspot(
-          id: 'btn3',
+          id: 'ext_btn_3',
           left: 160,
           top: 200,
           width: 75,
@@ -48,7 +78,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Button 3',
         ),
         ModuleHotspot(
-          id: 'btn4',
+          id: 'ext_btn_4',
           left: 250,
           top: 200,
           width: 75,
@@ -56,7 +86,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Button 4',
         ),
         ModuleHotspot(
-          id: 'btn5',
+          id: 'ext_btn_5',
           left: 160,
           top: 290,
           width: 75,
@@ -64,7 +94,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Button 5',
         ),
         ModuleHotspot(
-          id: 'btn6',
+          id: 'ext_btn_6',
           left: 250,
           top: 290,
           width: 75,
@@ -80,7 +110,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 2 Vertical Areas - Shortened, Moved Up & Left
         ModuleHotspot(
-          id: 'slider_left',
+          id: 'slider_1',
           left: 165,
           top: 120,
           width: 60,
@@ -88,7 +118,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Left Slider',
         ),
         ModuleHotspot(
-          id: 'slider_right',
+          id: 'slider_2',
           left: 260,
           top: 120,
           width: 60,
@@ -104,7 +134,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 2 Circular Areas (Vertical) - Reduced size to 120, closer together
         ModuleHotspot(
-          id: 'knob1',
+          id: 'knob_1',
           left: 188,
           top: 105,
           width: 110,
@@ -113,7 +143,7 @@ class _ModulesPageState extends State<ModulesPage> {
           isRound: true,
         ),
         ModuleHotspot(
-          id: 'knob2',
+          id: 'knob_2',
           left: 188,
           top: 260,
           width: 110,
@@ -130,7 +160,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 3 Vertical Squares
         ModuleHotspot(
-          id: 'touch1',
+          id: 'touch_1',
           left: 213,
           top: 105,
           width: 80,
@@ -138,7 +168,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Touch 1',
         ),
         ModuleHotspot(
-          id: 'touch2',
+          id: 'touch_2',
           left: 213,
           top: 197,
           width: 80,
@@ -146,7 +176,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Touch 2',
         ),
         ModuleHotspot(
-          id: 'touch3',
+          id: 'touch_3',
           left: 213,
           top: 290,
           width: 80,
@@ -162,7 +192,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 2x3 Grid - 65x65, centered (shifted right to 178/268)
         ModuleHotspot(
-          id: 'sw1',
+          id: 'switch_1',
           left: 170,
           top: 120,
           width: 65,
@@ -170,7 +200,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Switch 1',
         ),
         ModuleHotspot(
-          id: 'sw2',
+          id: 'switch_2',
           left: 265,
           top: 120,
           width: 65,
@@ -178,7 +208,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Switch 2',
         ),
         ModuleHotspot(
-          id: 'sw3',
+          id: 'switch_3',
           left: 170,
           top: 215,
           width: 65,
@@ -186,7 +216,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Switch 3',
         ),
         ModuleHotspot(
-          id: 'sw4',
+          id: 'switch_4',
           left: 265,
           top: 215,
           width: 65,
@@ -194,7 +224,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Switch 4',
         ),
         ModuleHotspot(
-          id: 'sw5',
+          id: 'switch_5',
           left: 170,
           top: 305,
           width: 65,
@@ -202,7 +232,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Switch 5',
         ),
         ModuleHotspot(
-          id: 'sw6',
+          id: 'switch_6',
           left: 265,
           top: 305,
           width: 65,
@@ -218,7 +248,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 2 Circular Areas (Top) + 1 Rectangular Area (Bottom)
         ModuleHotspot(
-          id: 'media_knob_l',
+          id: 'media_knob_1',
           left: 55,
           top: 135,
           width: 160,
@@ -227,7 +257,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Media Knob Left',
         ),
         ModuleHotspot(
-          id: 'media_knob_r',
+          id: 'media_knob_2',
           left: 295,
           top: 135,
           width: 160,
@@ -236,7 +266,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Media Knob Right',
         ),
         ModuleHotspot(
-          id: 'media_bar',
+          id: 'media_bar_1',
           left: 160,
           top: 320,
           width: 200,
@@ -252,7 +282,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 7 White Keys (Bottom Area) - Tight spacing (2px gap)
         ModuleHotspot(
-          id: 'key1',
+          id: 'piano_key_1',
           left: 75,
           top: 260,
           width: 50,
@@ -260,7 +290,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Key 1',
         ),
         ModuleHotspot(
-          id: 'key2',
+          id: 'piano_key_2',
           left: 127,
           top: 260,
           width: 50,
@@ -268,7 +298,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Key 2',
         ),
         ModuleHotspot(
-          id: 'key3',
+          id: 'piano_key_3',
           left: 179,
           top: 260,
           width: 50,
@@ -276,7 +306,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Key 3',
         ),
         ModuleHotspot(
-          id: 'key4',
+          id: 'piano_key_4',
           left: 231,
           top: 260,
           width: 50,
@@ -284,7 +314,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Key 4',
         ),
         ModuleHotspot(
-          id: 'key5',
+          id: 'piano_key_5',
           left: 283,
           top: 260,
           width: 50,
@@ -292,7 +322,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Key 5',
         ),
         ModuleHotspot(
-          id: 'key6',
+          id: 'piano_key_6',
           left: 335,
           top: 260,
           width: 50,
@@ -300,7 +330,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Key 6',
         ),
         ModuleHotspot(
-          id: 'key7',
+          id: 'piano_key_7',
           left: 387,
           top: 260,
           width: 50,
@@ -309,7 +339,7 @@ class _ModulesPageState extends State<ModulesPage> {
         ),
         // 5 Black Keys (Top Area) - Lowered (Top=125)
         ModuleHotspot(
-          id: 'black1',
+          id: 'piano_black_1',
           left: 112,
           top: 150,
           width: 35,
@@ -317,7 +347,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Black 1',
         ),
         ModuleHotspot(
-          id: 'black2',
+          id: 'piano_black_2',
           left: 163,
           top: 150,
           width: 35,
@@ -325,7 +355,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Black 2',
         ),
         ModuleHotspot(
-          id: 'black3',
+          id: 'piano_black_3',
           left: 264,
           top: 150,
           width: 35,
@@ -333,7 +363,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Black 3',
         ),
         ModuleHotspot(
-          id: 'black4',
+          id: 'piano_black_4',
           left: 316,
           top: 150,
           width: 35,
@@ -341,7 +371,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Black 4',
         ),
         ModuleHotspot(
-          id: 'black5',
+          id: 'piano_black_5',
           left: 366,
           top: 150,
           width: 35,
@@ -357,7 +387,7 @@ class _ModulesPageState extends State<ModulesPage> {
       hotspots: [
         // 1 Circular (TR), 2 Rect (TL), 1 Sq (Center), 1 Rect (BR) - Centered
         ModuleHotspot(
-          id: 'mod_rect1',
+          id: 'modeling_rect_1',
           left: 117,
           top: 125,
           width: 60,
@@ -365,7 +395,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Rect 1',
         ),
         ModuleHotspot(
-          id: 'mod_rect2',
+          id: 'modeling_rect_2',
           left: 180,
           top: 125,
           width: 60,
@@ -373,7 +403,7 @@ class _ModulesPageState extends State<ModulesPage> {
           tooltipKey: 'Rect 2',
         ),
         ModuleHotspot(
-          id: 'mod_circ',
+          id: 'modeling_circle',
           left: 258,
           top: 106,
           width: 110,
@@ -381,18 +411,16 @@ class _ModulesPageState extends State<ModulesPage> {
           isRound: true,
           tooltipKey: 'Circle',
         ),
-
         ModuleHotspot(
-          id: 'mod_sq',
+          id: 'modeling_square',
           left: 200,
           top: 215,
           width: 70,
           height: 70,
           tooltipKey: 'Square',
         ),
-
         ModuleHotspot(
-          id: 'mod_wheel',
+          id: 'modeling_wheel',
           left: 320,
           top: 270,
           width: 50,
@@ -588,7 +616,11 @@ class _ModulesPageState extends State<ModulesPage> {
     final bool isAnalog = module.id == 'sliders' || module.id == 'knobs';
     final bool isModelingRestricted =
         module.id == 'modeling' &&
-        ['mod_rect1', 'mod_rect2', 'mod_circ'].contains(hotspot.id);
+        [
+          'modeling_rect_1',
+          'modeling_rect_2',
+          'modeling_circle',
+        ].contains(hotspot.id);
 
     final List<String> availableTypes;
     if (isModelingRestricted) {
@@ -762,14 +794,14 @@ class _ModulesPageState extends State<ModulesPage> {
                 ),
                 TextButton(
                   child: Text(AppStrings.get(currentLocale, AppKeys.save)),
-                  onPressed: () {
+                  onPressed: () async {
                     String value = '';
                     if (selectedType == 'Link') value = linkController.text;
                     if (selectedType == 'App') value = appController.text;
                     if (selectedType == 'Hotkey') value = hotkeyController.text;
 
                     setState(() {
-                      if (!_moduleConfigs.containsKey(moduleIndex)) {
+                      if (_moduleConfigs[moduleIndex] == null) {
                         _moduleConfigs[moduleIndex] = {};
                       }
                       _moduleConfigs[moduleIndex]![hotspot.id] = {
@@ -777,7 +809,14 @@ class _ModulesPageState extends State<ModulesPage> {
                         'value': value,
                       };
                     });
-                    Navigator.of(context).pop();
+
+                    await ConfigService.saveMapping(
+                      hotspot.id,
+                      selectedType,
+                      value,
+                    );
+
+                    if (mounted) Navigator.of(context).pop();
                   },
                 ),
               ],
