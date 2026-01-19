@@ -521,9 +521,9 @@ class _ModulesPageState extends State<ModulesPage> {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () => _showConfigDialog(module, hotspot),
-                            hoverColor: Colors.blue.withValues(alpha: 0.3),
-                            highlightColor: Colors.black,
-                            splashColor: Colors.black,
+                            hoverColor: Colors.black.withValues(alpha: 0.3),
+                            highlightColor: Colors.black.withValues(alpha: 0.5),
+                            splashColor: Colors.black.withValues(alpha: 0.5),
                             customBorder: hotspot.isRound
                                 ? const CircleBorder()
                                 : RoundedRectangleBorder(
@@ -537,6 +537,23 @@ class _ModulesPageState extends State<ModulesPage> {
                                 borderRadius: hotspot.isRound
                                     ? null
                                     : BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 24,
+                                    shadows: [
+                                      Shadow(
+                                        offset: Offset(1, 1),
+                                        blurRadius: 2,
+                                        color: Colors.black,
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ),
