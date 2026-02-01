@@ -1,3 +1,4 @@
+import 'package:console_deck_ui/pages/skin_creator_page.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_translations.dart';
 import 'pages/home_page.dart';
@@ -14,7 +15,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [HomePage(), ModulesPage(), SettingsPage()];
+  final List<Widget> _pages = const [HomePage(), ModulesPage(), SkinCreatorPage(), SettingsPage()];
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +42,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(Icons.view_module),
                 selectedIcon: const Icon(Icons.view_module_rounded),
                 label: Text(AppStrings.get(currentLocale, AppKeys.modules)),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.add_box),
+                selectedIcon: const Icon(Icons.add_box_rounded),
+                label: Text(AppStrings.get(currentLocale, AppKeys.skinCreator)),
               ),
               NavigationRailDestination(
                 icon: const Icon(Icons.settings),

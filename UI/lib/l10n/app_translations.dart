@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class AppKeys {
   static const String home = 'home';
   static const String modules = 'modules';
+  static const String skinCreator = 'Skin Creator';
   static const String settings = 'settings';
   static const String themeLight = 'theme_light';
   static const String themeDark = 'theme_dark';
@@ -54,6 +55,8 @@ class AppKeys {
   static const String reportProblem = 'report_problem';
   static const String reportSubject = 'report_subject';
   static const String reportBodyPrototype = 'report_body_prototype';
+  static const String browse = 'browse';
+  static const String generate = 'generate';
 }
 
 class AppStrings {
@@ -105,6 +108,8 @@ class AppStrings {
       AppKeys.reportProblem: 'Report a Problem',
       AppKeys.reportSubject: 'Console Deck PRO Report Issue',
       AppKeys.reportBodyPrototype: 'Issue Description: ',
+      AppKeys.browse: 'Browse',
+      AppKeys.generate: 'Generate',
     },
     'it': {
       AppKeys.home: 'Home',
@@ -152,6 +157,8 @@ class AppStrings {
       AppKeys.reportProblem: 'Segnala un Problema',
       AppKeys.reportSubject: 'Segnalazione Problema Console Deck PRO',
       AppKeys.reportBodyPrototype: 'Descrizione del problema: ',
+      AppKeys.browse: 'Sfoglia',
+      AppKeys.generate: 'Genera',
     },
     'es': {
       AppKeys.home: 'Inicio',
