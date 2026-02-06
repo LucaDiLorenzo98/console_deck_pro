@@ -57,6 +57,19 @@ class AppKeys {
   static const String reportBodyPrototype = 'report_body_prototype';
   static const String browse = 'browse';
   static const String generate = 'generate';
+  // Upload / Skin generation messages
+  static const String uploadSuccess = 'upload_success';
+  static const String uploadAuthError = 'upload_auth_error';
+  static const String uploadTooLarge = 'upload_too_large';
+  static const String uploadInvalidSvg = 'upload_invalid_svg';
+  static const String uploadTooManyRequests = 'upload_too_many_requests';
+  static const String uploadComplexLogo = 'upload_complex_logo';
+  static const String uploadServerError = 'upload_server_error';
+  static const String uploadTimeout = 'upload_timeout';
+  static const String fileNotFound = 'file_not_found';
+  static const String openFolder = 'open_folder';
+  static const String fileSavedPrefix = 'file_saved_prefix';
+  static const String errorPrefix = 'error_prefix';
 }
 
 class AppStrings {
@@ -110,6 +123,19 @@ class AppStrings {
       AppKeys.reportBodyPrototype: 'Issue Description: ',
       AppKeys.browse: 'Browse',
       AppKeys.generate: 'Generate',
+      // Upload / Skin generation messages
+      AppKeys.uploadSuccess: 'Success! Your 3D file is ready.',
+      AppKeys.uploadAuthError: 'App authentication failed.',
+      AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
+      AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
+      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
+      AppKeys.uploadServerError: 'An unexpected server error occurred.',
+      AppKeys.uploadTimeout: 'Operation timed out. Please try again.',
+      AppKeys.fileNotFound: 'File not found',
+      AppKeys.fileSavedPrefix: 'File saved:',
+      AppKeys.errorPrefix: 'Error:',
+      AppKeys.openFolder: 'Open Folder',
     },
     'it': {
       AppKeys.home: 'Home',
@@ -159,6 +185,19 @@ class AppStrings {
       AppKeys.reportBodyPrototype: 'Descrizione del problema: ',
       AppKeys.browse: 'Sfoglia',
       AppKeys.generate: 'Genera',
+      // Upload / Skin generation messages (Italian)
+      AppKeys.uploadSuccess: 'Successo! Il tuo file 3D è pronto.',
+      AppKeys.uploadAuthError: "Errore di autenticazione dell'app.",
+      AppKeys.uploadTooLarge: "Il file è troppo pesante. Massimo 5MB.",
+      AppKeys.uploadInvalidSvg: "Il file caricato non è un SVG valido.",
+      AppKeys.uploadTooManyRequests: "Troppe richieste. Fai una pausa e riprova più tardi!",
+      AppKeys.uploadComplexLogo: "Il logo è troppo complesso per il rendering 3D.",
+      AppKeys.uploadServerError: "C'è stato un problema imprevisto sul server.",
+      AppKeys.uploadTimeout: 'Tempo di attesa scaduto. Riprova più tardi.',
+      AppKeys.fileNotFound: 'File non trovato',
+      AppKeys.fileSavedPrefix: 'File salvato:',
+      AppKeys.errorPrefix: 'Errore:',
+      AppKeys.openFolder: 'Apri Cartella',
     },
     'es': {
       AppKeys.home: 'Inicio',
@@ -206,6 +245,18 @@ class AppStrings {
       AppKeys.reportProblem: 'Reportar Problema',
       AppKeys.reportSubject: 'Reporte de Problema Console Deck PRO',
       AppKeys.reportBodyPrototype: 'Descripción del problema: ',
+      // Upload messages (fallback to English)
+      AppKeys.uploadSuccess: 'Success! Your 3D file is ready.',
+      AppKeys.uploadAuthError: 'App authentication failed.',
+      AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
+      AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
+      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
+      AppKeys.uploadServerError: 'An unexpected server error occurred.',
+      AppKeys.fileNotFound: 'File not found',
+      AppKeys.fileSavedPrefix: 'File saved:',
+      AppKeys.errorPrefix: 'Error:',
+      AppKeys.openFolder: 'Open Folder',
     },
     'fr': {
       AppKeys.home: 'Accueil',
@@ -254,6 +305,17 @@ class AppStrings {
       AppKeys.reportProblem: 'Signaler un Problème',
       AppKeys.reportSubject: 'Problème Console Deck PRO',
       AppKeys.reportBodyPrototype: 'Description du problème: ',
+      AppKeys.uploadSuccess: 'Success! Your 3D file is ready.',
+      AppKeys.uploadAuthError: 'App authentication failed.',
+      AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
+      AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
+      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
+      AppKeys.uploadServerError: 'An unexpected server error occurred.',
+      AppKeys.fileNotFound: 'File not found',
+      AppKeys.fileSavedPrefix: 'File saved:',
+      AppKeys.errorPrefix: 'Error:',
+      AppKeys.openFolder: 'Open Folder',
     },
     'de': {
       AppKeys.home: 'Startseite',
@@ -301,6 +363,17 @@ class AppStrings {
       AppKeys.reportProblem: 'Problem Melden',
       AppKeys.reportSubject: 'Console Deck PRO Problem',
       AppKeys.reportBodyPrototype: 'Problembeschreibung: ',
+      AppKeys.uploadSuccess: 'Success! Your 3D file is ready.',
+      AppKeys.uploadAuthError: 'App authentication failed.',
+      AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
+      AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
+      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
+      AppKeys.uploadServerError: 'An unexpected server error occurred.',
+      AppKeys.fileNotFound: 'File not found',
+      AppKeys.fileSavedPrefix: 'File saved:',
+      AppKeys.errorPrefix: 'Error:',
+      AppKeys.openFolder: 'Open Folder',
     },
     'zh': {
       AppKeys.home: '首页',
@@ -346,6 +419,17 @@ class AppStrings {
       AppKeys.reportProblem: '报告问题',
       AppKeys.reportSubject: 'Console Deck PRO 问题报告',
       AppKeys.reportBodyPrototype: '问题描述: ',
+      AppKeys.uploadSuccess: 'Success! Your 3D file is ready.',
+      AppKeys.uploadAuthError: 'App authentication failed.',
+      AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
+      AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
+      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
+      AppKeys.uploadServerError: 'An unexpected server error occurred.',
+      AppKeys.fileNotFound: 'File not found',
+      AppKeys.fileSavedPrefix: 'File saved:',
+      AppKeys.errorPrefix: 'Error:',
+      AppKeys.openFolder: 'Open Folder',
     },
     'ja': {
       AppKeys.home: 'ホーム',
@@ -391,6 +475,17 @@ class AppStrings {
       AppKeys.reportProblem: '問題を報告',
       AppKeys.reportSubject: 'Console Deck PRO 問題報告',
       AppKeys.reportBodyPrototype: '問題の説明: ',
+      AppKeys.uploadSuccess: 'Success! Your 3D file is ready.',
+      AppKeys.uploadAuthError: 'App authentication failed.',
+      AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
+      AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
+      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
+      AppKeys.uploadServerError: 'An unexpected server error occurred.',
+      AppKeys.fileNotFound: 'File not found',
+      AppKeys.fileSavedPrefix: 'File saved:',
+      AppKeys.errorPrefix: 'Error:',
+      AppKeys.openFolder: 'Open Folder',
     },
   };
 
