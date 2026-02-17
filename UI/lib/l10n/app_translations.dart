@@ -38,8 +38,22 @@ class AppKeys {
   static const String moduleTouch = 'module_touch';
   static const String moduleSwitch = 'module_switch';
   static const String moduleExtendedBtn = 'module_extended_btn';
-  static const String modulePiano = 'module_piano';
-  static const String moduleModeling = 'module_modeling';
+  static const String modulePiano = 'module.piano';
+  static const String moduleModeling = 'module.modeling';
+  static const String serialPort = 'settings.serialPort';
+  static const String selectPort = 'settings.selectPort';
+  static const String noPortsFound = 'settings.noPortsFound';
+  static const String portSaved = 'settings.portSaved';
+  static const String backendConnectionError =
+      'settings.backendConnectionError';
+  static const String statusConnected = 'status.connected';
+  static const String statusNotConfigured = 'status.notConfigured';
+  static const String statusBackendDown = 'status.backendDown';
+  static const String configPromptTitle = 'config.promptTitle';
+  static const String configPromptBody = 'config.promptBody';
+  static const String configPromptButton = 'config.promptButton';
+  static const String alertNotConfiguredText = 'alert.notConfigured.text';
+  static const String alertNotConfiguredButton = 'alert.notConfigured.button';
 
   // Media Module Actions
   static const String mediaPlayPause = 'media_play_pause';
@@ -70,6 +84,7 @@ class AppKeys {
   static const String openFolder = 'open_folder';
   static const String fileSavedPrefix = 'file_saved_prefix';
   static const String errorPrefix = 'error_prefix';
+  static const String clear = 'clear';
 }
 
 class AppStrings {
@@ -109,7 +124,23 @@ class AppStrings {
       AppKeys.moduleSwitch: 'Switches',
       AppKeys.moduleExtendedBtn: 'Extended Buttons',
       AppKeys.modulePiano: 'Piano',
-      AppKeys.moduleModeling: 'Modeling',
+      AppKeys.moduleModeling: '3D Modeling',
+      AppKeys.serialPort: 'Serial Port',
+      AppKeys.selectPort: 'Select a port',
+      AppKeys.noPortsFound: 'No ports found',
+      AppKeys.portSaved: 'Port saved:',
+      AppKeys.backendConnectionError:
+          'Error: Could not connect to the backend script. Make sure it is running.',
+      AppKeys.statusConnected: 'Connected',
+      AppKeys.statusNotConfigured: 'Port not configured',
+      AppKeys.statusBackendDown: 'Backend Down',
+      AppKeys.configPromptTitle: 'Configuration Required',
+      AppKeys.configPromptBody:
+          'The serial port is not configured. Please go to settings to select the correct port for your device.',
+      AppKeys.configPromptButton: 'Go to Settings',
+      AppKeys.alertNotConfiguredText:
+          'Serial port not configured. Please select a port to connect to the device.',
+      AppKeys.alertNotConfiguredButton: 'Open Settings',
       AppKeys.mediaPlayPause: 'Play/Pause',
       AppKeys.mediaNext: 'Next Track',
       AppKeys.mediaPrev: 'Previous Track',
@@ -128,7 +159,8 @@ class AppStrings {
       AppKeys.uploadAuthError: 'App authentication failed.',
       AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
       AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
-      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadTooManyRequests:
+          'Too many requests. Please wait and try again later!',
       AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
       AppKeys.uploadServerError: 'An unexpected server error occurred.',
       AppKeys.uploadTimeout: 'Operation timed out. Please try again.',
@@ -136,6 +168,7 @@ class AppStrings {
       AppKeys.fileSavedPrefix: 'File saved:',
       AppKeys.errorPrefix: 'Error:',
       AppKeys.openFolder: 'Open Folder',
+      AppKeys.clear: 'Clear',
     },
     'it': {
       AppKeys.home: 'Home',
@@ -170,13 +203,29 @@ class AppStrings {
       AppKeys.moduleTouch: 'Touch',
       AppKeys.moduleSwitch: 'Interruttori',
       AppKeys.moduleExtendedBtn: 'Pulsanti Estesi',
-      AppKeys.modulePiano: 'Piano',
-      AppKeys.moduleModeling: 'Modellazione',
+      AppKeys.modulePiano: 'Pianoforte',
+      AppKeys.moduleModeling: 'Modellazione 3D',
+      AppKeys.serialPort: 'Porta Seriale',
+      AppKeys.selectPort: 'Seleziona una porta',
+      AppKeys.noPortsFound: 'Nessuna porta trovata',
+      AppKeys.portSaved: 'Porta salvata:',
+      AppKeys.backendConnectionError:
+          'Errore: Impossibile connettersi allo script di backend. Assicurati che sia in esecuzione.',
+      AppKeys.statusConnected: 'Connesso',
+      AppKeys.statusNotConfigured: 'Porta non configurata',
+      AppKeys.statusBackendDown: 'Backend non attivo',
+      AppKeys.configPromptTitle: 'Configurazione Richiesta',
+      AppKeys.configPromptBody:
+          'La porta seriale non è configurata. Vai alle impostazioni per selezionare la porta corretta per il tuo dispositivo.',
+      AppKeys.configPromptButton: 'Vai alle Impostazioni',
+      AppKeys.alertNotConfiguredText:
+          'Porta seriale non configurata. Seleziona un porto per connetterti al dispositivo.',
+      AppKeys.alertNotConfiguredButton: 'Apri Impostazioni',
       AppKeys.mediaPlayPause: 'Play/Pausa',
       AppKeys.mediaNext: 'Traccia Successiva',
       AppKeys.mediaPrev: 'Traccia Precedente',
-      AppKeys.mediaVolUp: 'Volume Su',
-      AppKeys.mediaVolDown: 'Volume Giù',
+      AppKeys.mediaVolUp: 'Volume +',
+      AppKeys.mediaVolDown: 'Volume -',
       AppKeys.visitWebsite: 'Visita il Sito',
       AppKeys.visitMakerWorld: 'Visita MakerWorld',
       AppKeys.socialNetworks: 'Social Network',
@@ -190,14 +239,17 @@ class AppStrings {
       AppKeys.uploadAuthError: "Errore di autenticazione dell'app.",
       AppKeys.uploadTooLarge: "Il file è troppo pesante. Massimo 5MB.",
       AppKeys.uploadInvalidSvg: "Il file caricato non è un SVG valido.",
-      AppKeys.uploadTooManyRequests: "Troppe richieste. Fai una pausa e riprova più tardi!",
-      AppKeys.uploadComplexLogo: "Il logo è troppo complesso per il rendering 3D.",
+      AppKeys.uploadTooManyRequests:
+          "Troppe richieste. Fai una pausa e riprova più tardi!",
+      AppKeys.uploadComplexLogo:
+          "Il logo è troppo complesso per il rendering 3D.",
       AppKeys.uploadServerError: "C'è stato un problema imprevisto sul server.",
       AppKeys.uploadTimeout: 'Tempo di attesa scaduto. Riprova più tardi.',
       AppKeys.fileNotFound: 'File non trovato',
       AppKeys.fileSavedPrefix: 'File salvato:',
       AppKeys.errorPrefix: 'Errore:',
       AppKeys.openFolder: 'Apri Cartella',
+      AppKeys.clear: 'Pulisci',
     },
     'es': {
       AppKeys.home: 'Inicio',
@@ -233,14 +285,30 @@ class AppStrings {
       AppKeys.moduleSwitch: 'Interruptores',
       AppKeys.moduleExtendedBtn: 'Botones Extendidos',
       AppKeys.modulePiano: 'Piano',
-      AppKeys.moduleModeling: 'Modelado',
+      AppKeys.moduleModeling: 'Modelado 3D',
+      AppKeys.serialPort: 'Puerto Serie',
+      AppKeys.selectPort: 'Seleccione un puerto',
+      AppKeys.noPortsFound: 'No se encontraron puertos',
+      AppKeys.portSaved: 'Puerto guardado:',
+      AppKeys.backendConnectionError:
+          'Error: No se pudo conectar con el script del backend. Asegúrese de que se esté ejecutando.',
+      AppKeys.statusConnected: 'Conectado',
+      AppKeys.statusNotConfigured: 'Puerto no configurado',
+      AppKeys.statusBackendDown: 'Backend inactivo',
+      AppKeys.configPromptTitle: 'Configuración Requerida',
+      AppKeys.configPromptBody:
+          'El puerto serie no está configurado. Vaya a la configuración para seleccionar el puerto correcto para su dispositivo.',
+      AppKeys.configPromptButton: 'Ir a Configuración',
+      AppKeys.alertNotConfiguredText:
+          'Puerto serie no configurado. Seleziona un porto per connetterti al dispositivo.',
+      AppKeys.alertNotConfiguredButton: 'Abrir Configuración',
       AppKeys.mediaPlayPause: 'Reproducir/Pausar',
       AppKeys.mediaNext: 'Siguiente Pista',
       AppKeys.mediaPrev: 'Pista Anterior',
-      AppKeys.mediaVolUp: 'Subir Volumen',
-      AppKeys.mediaVolDown: 'Bajar Volumen',
+      AppKeys.mediaVolUp: 'Volume +',
+      AppKeys.mediaVolDown: 'Volume -',
       AppKeys.visitWebsite: 'Visitar Sitio Web',
-      AppKeys.visitMakerWorld: 'Visitar MakerWorld',
+      AppKeys.visitMakerWorld: 'Besuche MakerWorld',
       AppKeys.socialNetworks: 'Redes Sociales',
       AppKeys.reportProblem: 'Reportar Problema',
       AppKeys.reportSubject: 'Reporte de Problema Console Deck PRO',
@@ -250,13 +318,15 @@ class AppStrings {
       AppKeys.uploadAuthError: 'App authentication failed.',
       AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
       AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
-      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadTooManyRequests:
+          'Too many requests. Please wait and try again later!',
       AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
       AppKeys.uploadServerError: 'An unexpected server error occurred.',
       AppKeys.fileNotFound: 'File not found',
       AppKeys.fileSavedPrefix: 'File saved:',
       AppKeys.errorPrefix: 'Error:',
       AppKeys.openFolder: 'Open Folder',
+      AppKeys.clear: 'Limpiar',
     },
     'fr': {
       AppKeys.home: 'Accueil',
@@ -293,14 +363,30 @@ class AppStrings {
       AppKeys.moduleSwitch: 'Interrupteurs',
       AppKeys.moduleExtendedBtn: 'Boutons Étendus',
       AppKeys.modulePiano: 'Piano',
-      AppKeys.moduleModeling: 'Modélisation',
+      AppKeys.moduleModeling: 'Modélisation 3D',
+      AppKeys.serialPort: 'Port Série',
+      AppKeys.selectPort: 'Sélectionnez un port',
+      AppKeys.noPortsFound: 'Aucun port trouvé',
+      AppKeys.portSaved: 'Port enregistré :',
+      AppKeys.backendConnectionError:
+          'Erreur : Impossible de se connecter au script backend. Assurez-vous qu\'il est en cours d\'exécution.',
+      AppKeys.statusConnected: 'Connecté',
+      AppKeys.statusNotConfigured: 'Port non configuré',
+      AppKeys.statusBackendDown: 'Backend inactif',
+      AppKeys.configPromptTitle: 'Configuration Requise',
+      AppKeys.configPromptBody:
+          'Le port série n\'est pas configuré. Veuillez accéder aux paramètres pour sélectionner le port correct pour votre appareil.',
+      AppKeys.configPromptButton: 'Aller aux Paramètres',
+      AppKeys.alertNotConfiguredText:
+          'Port série non configuré. Veuillez sélectionner un port pour vous connecter à l\'appareil.',
+      AppKeys.alertNotConfiguredButton: 'Ouvrir les Paramètres',
       AppKeys.mediaPlayPause: 'Lecture/Pause',
       AppKeys.mediaNext: 'Piste Suivante',
       AppKeys.mediaPrev: 'Piste Précédente',
       AppKeys.mediaVolUp: 'Volume +',
       AppKeys.mediaVolDown: 'Volume -',
       AppKeys.visitWebsite: 'Visiter le Site Web',
-      AppKeys.visitMakerWorld: 'Visiter MakerWorld',
+      AppKeys.visitMakerWorld: 'Besuche MakerWorld',
       AppKeys.socialNetworks: 'Réseaux Sociaux',
       AppKeys.reportProblem: 'Signaler un Problème',
       AppKeys.reportSubject: 'Problème Console Deck PRO',
@@ -309,13 +395,15 @@ class AppStrings {
       AppKeys.uploadAuthError: 'App authentication failed.',
       AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
       AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
-      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadTooManyRequests:
+          'Too many requests. Please wait and try again later!',
       AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
       AppKeys.uploadServerError: 'An unexpected server error occurred.',
       AppKeys.fileNotFound: 'File not found',
       AppKeys.fileSavedPrefix: 'File saved:',
       AppKeys.errorPrefix: 'Error:',
       AppKeys.openFolder: 'Open Folder',
+      AppKeys.clear: 'Effacer',
     },
     'de': {
       AppKeys.home: 'Startseite',
@@ -351,7 +439,23 @@ class AppStrings {
       AppKeys.moduleSwitch: 'Schalter',
       AppKeys.moduleExtendedBtn: 'Erweiterte Tasten',
       AppKeys.modulePiano: 'Klavier',
-      AppKeys.moduleModeling: 'Modellierung',
+      AppKeys.moduleModeling: '3D-Modellierung',
+      AppKeys.serialPort: 'Serieller Anschluss',
+      AppKeys.selectPort: 'Wählen Sie einen Port aus',
+      AppKeys.noPortsFound: 'Keine Ports gefunden',
+      AppKeys.portSaved: 'Port gespeichert:',
+      AppKeys.backendConnectionError:
+          'Fehler: Konnte keine Verbindung zum Backend-Skript herstellen. Stellen Sie sicher, dass es läuft.',
+      AppKeys.statusConnected: 'Verbunden',
+      AppKeys.statusNotConfigured: 'Port nicht konfiguriert',
+      AppKeys.statusBackendDown: 'Backend inaktiv',
+      AppKeys.configPromptTitle: 'Konfiguration Erforderlich',
+      AppKeys.configPromptBody:
+          'Der serielle Port ist nicht konfiguriert. Bitte gehen Sie zu den Einstellungen, um den richtigen Port für Ihr Gerät auszuwählen.',
+      AppKeys.configPromptButton: 'Zu den Einstellungen',
+      AppKeys.alertNotConfiguredText:
+          'Serieller Port nicht konfiguriert. Bitte wählen Sie einen Port aus, um eine Verbindung zum Gerät herzustellen.',
+      AppKeys.alertNotConfiguredButton: 'Einstellungen öffnen',
       AppKeys.mediaPlayPause: 'Wiedergabe/Pause',
       AppKeys.mediaNext: 'Nächster Titel',
       AppKeys.mediaPrev: 'Vorheriger Titel',
@@ -367,13 +471,15 @@ class AppStrings {
       AppKeys.uploadAuthError: 'App authentication failed.',
       AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
       AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
-      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadTooManyRequests:
+          'Too many requests. Please wait and try again later!',
       AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
       AppKeys.uploadServerError: 'An unexpected server error occurred.',
       AppKeys.fileNotFound: 'File not found',
       AppKeys.fileSavedPrefix: 'File saved:',
       AppKeys.errorPrefix: 'Error:',
       AppKeys.openFolder: 'Open Folder',
+      AppKeys.clear: 'Löschen',
     },
     'zh': {
       AppKeys.home: '首页',
@@ -407,7 +513,20 @@ class AppStrings {
       AppKeys.moduleSwitch: '开关',
       AppKeys.moduleExtendedBtn: '扩展按钮',
       AppKeys.modulePiano: '钢琴',
-      AppKeys.moduleModeling: '建模',
+      AppKeys.moduleModeling: '3D建模',
+      AppKeys.serialPort: '串口',
+      AppKeys.selectPort: '选择一个端口',
+      AppKeys.noPortsFound: '未找到端口',
+      AppKeys.portSaved: '端口已保存:',
+      AppKeys.backendConnectionError: '错误：无法连接到后端脚本。请确保它正在运行。',
+      AppKeys.statusConnected: '已连接',
+      AppKeys.statusNotConfigured: '端口未配置',
+      AppKeys.statusBackendDown: '后端无响应',
+      AppKeys.configPromptTitle: '需要配置',
+      AppKeys.configPromptBody: '串行端口未配置。请转到设置以选择您设备的正确端口。',
+      AppKeys.configPromptButton: '前往设置',
+      AppKeys.alertNotConfiguredText: '串行端口未配置。请选择一个端口以连接到设备。',
+      AppKeys.alertNotConfiguredButton: '打开设置',
       AppKeys.mediaPlayPause: '播放/暂停',
       AppKeys.mediaNext: '下一首',
       AppKeys.mediaPrev: '上一首',
@@ -423,13 +542,15 @@ class AppStrings {
       AppKeys.uploadAuthError: 'App authentication failed.',
       AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
       AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
-      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadTooManyRequests:
+          'Too many requests. Please wait and try again later!',
       AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
       AppKeys.uploadServerError: 'An unexpected server error occurred.',
       AppKeys.fileNotFound: 'File not found',
       AppKeys.fileSavedPrefix: 'File saved:',
       AppKeys.errorPrefix: 'Error:',
       AppKeys.openFolder: 'Open Folder',
+      AppKeys.clear: '清除',
     },
     'ja': {
       AppKeys.home: 'ホーム',
@@ -463,7 +584,23 @@ class AppStrings {
       AppKeys.moduleSwitch: 'スイッチ',
       AppKeys.moduleExtendedBtn: '拡張ボタン',
       AppKeys.modulePiano: 'ピアノ',
-      AppKeys.moduleModeling: 'モデリング',
+      AppKeys.moduleModeling: '3Dモデリング',
+      AppKeys.serialPort: 'シリアルポート',
+      AppKeys.selectPort: 'ポートを選択',
+      AppKeys.noPortsFound: 'ポートが見つかりません',
+      AppKeys.portSaved: 'ポートが保存されました:',
+      AppKeys.backendConnectionError:
+          'エラー：バックエンドスクリプトに接続できませんでした。実行していることを確認してください。',
+      AppKeys.statusConnected: '接続済み',
+      AppKeys.statusNotConfigured: 'ポートが設定されていません',
+      AppKeys.statusBackendDown: 'バックエンドがダウンしています',
+      AppKeys.configPromptTitle: '設定が必要です',
+      AppKeys.configPromptBody:
+          'シリアルポートが設定されていません。設定に移動して、デバイスの正しいポートを選択してください。',
+      AppKeys.configPromptButton: '設定に移動',
+      AppKeys.alertNotConfiguredText:
+          'シリアルポートが設定されていません。デバイスに接続するポートを選択してください。',
+      AppKeys.alertNotConfiguredButton: '設定を開く',
       AppKeys.mediaPlayPause: '再生/一時停止',
       AppKeys.mediaNext: '次のトラック',
       AppKeys.mediaPrev: '前のトラック',
@@ -479,13 +616,15 @@ class AppStrings {
       AppKeys.uploadAuthError: 'App authentication failed.',
       AppKeys.uploadTooLarge: 'File is too large. Maximum 5MB.',
       AppKeys.uploadInvalidSvg: 'Uploaded file is not a valid SVG.',
-      AppKeys.uploadTooManyRequests: 'Too many requests. Please wait and try again later!',
+      AppKeys.uploadTooManyRequests:
+          'Too many requests. Please wait and try again later!',
       AppKeys.uploadComplexLogo: 'The logo is too complex for 3D rendering.',
       AppKeys.uploadServerError: 'An unexpected server error occurred.',
       AppKeys.fileNotFound: 'File not found',
       AppKeys.fileSavedPrefix: 'File saved:',
       AppKeys.errorPrefix: 'Error:',
       AppKeys.openFolder: 'Open Folder',
+      AppKeys.clear: 'クリア',
     },
   };
 

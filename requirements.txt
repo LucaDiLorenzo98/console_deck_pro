@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+pyserial
+pyautogui
+screen-brightness-control
+psutil
+GPUtil

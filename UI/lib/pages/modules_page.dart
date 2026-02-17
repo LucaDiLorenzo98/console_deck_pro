@@ -3,6 +3,7 @@ import '../l10n/app_translations.dart';
 import '../models/module_model.dart';
 import '../services/config_service.dart';
 import 'package:file_picker/file_picker.dart';
+import '../widgets/hotkey_input_field.dart';
 
 class ModulesPage extends StatefulWidget {
   const ModulesPage({super.key});
@@ -769,57 +770,59 @@ class _ModulesPageState extends State<ModulesPage> {
                           ],
                         ),
                       if (selectedType == 'Hotkey')
-                        TextField(
+                        HotkeyInputField(
                           controller: hotkeyController,
-                          decoration: InputDecoration(
-                            labelText: AppStrings.get(
-                              currentLocale,
-                              AppKeys.hotkeyCombo,
-                            ),
-                            hintText: AppStrings.get(
-                              currentLocale,
-                              AppKeys.hotkeyHint,
-                            ),
-                            border: const OutlineInputBorder(),
+                          labelText: AppStrings.get(
+                            currentLocale,
+                            AppKeys.hotkeyCombo,
+                          ),
+                          hintText: AppStrings.get(
+                            currentLocale,
+                            AppKeys.hotkeyHint,
+                          ),
+                          clearTooltip: AppStrings.get(
+                            currentLocale,
+                            AppKeys.clear,
                           ),
                         ),
                     ],
                   ],
+                  ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  child: Text(AppStrings.get(currentLocale, AppKeys.cancel)),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                TextButton(
-                  child: Text(AppStrings.get(currentLocale, AppKeys.save)),
-                  onPressed: () async {
-                    String value = '';
-                    if (selectedType == 'Link') value = linkController.text;
-                    if (selectedType == 'App') value = appController.text;
-                    if (selectedType == 'Hotkey') value = hotkeyController.text;
+                // The extra parenthesis that caused the error was here. It has been removed.
+                actions: [
+                  TextButton(
+                    child: Text(AppStrings.get(currentLocale, AppKeys.cancel)),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  TextButton(
+                    child: Text(AppStrings.get(currentLocale, AppKeys.save)),
+                    onPressed: () async {
+                      String value = '';
+                      if (selectedType == 'Link') value = linkController.text;
+                      if (selectedType == 'App') value = appController.text;
+                      if (selectedType == 'Hotkey') value = hotkeyController.text;
 
-                    setState(() {
-                      if (_moduleConfigs[moduleIndex] == null) {
-                        _moduleConfigs[moduleIndex] = {};
-                      }
-                      _moduleConfigs[moduleIndex]![hotspot.id] = {
-                        'type': selectedType,
-                        'value': value,
-                      };
-                    });
+                      setState(() {
+                        if (_moduleConfigs[moduleIndex] == null) {
+                          _moduleConfigs[moduleIndex] = {};
+                        }
+                        _moduleConfigs[moduleIndex]![hotspot.id] = {
+                          'type': selectedType,
+                          'value': value,
+                        };
+                      });
 
-                    await ConfigService.saveMapping(
-                      hotspot.id,
-                      selectedType,
-                      value,
-                    );
+                      await ConfigService.saveMapping(
+                        hotspot.id,
+                        selectedType,
+                        value,
+                      );
 
-                    if (mounted) Navigator.of(context).pop();
-                  },
-                ),
-              ],
+                      if (mounted) Navigator.of(context).pop();
+                    },
+                  ),
+                ],
             );
           },
         );

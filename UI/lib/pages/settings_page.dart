@@ -1,12 +1,100 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+import '../services/config_service.dart';
 import '../theme_state.dart';
 import '../locale_state.dart';
 import '../l10n/app_translations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  List<dynamic>? _availablePorts;
+  String? _selectedPort;
+  bool _isLoadingPorts = true;
+  String? _portError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSerialPorts();
+    _loadCurrentConfig();
+  }
+
+  Future<void> _loadCurrentConfig() async {
+    final config = await ConfigService.loadConfig();
+    if (mounted) {
+      // Ensure the key exists before trying to access it
+      final serialConfig = config['serial'] as Map<String, dynamic>? ?? {};
+      final loadedPort = serialConfig['port'];
+
+      // DEBUG: Print the value being loaded
+      if (kDebugMode) {
+        print('[SettingsPage] Port value loaded from config: "$loadedPort" (Type: ${loadedPort.runtimeType})');
+      }
+
+      setState(() {
+        // Explicitly handle null to avoid ambiguity
+        _selectedPort = loadedPort;
+      });
+    }
+  }
+
+  Future<void> _loadSerialPorts() async {
+    try {
+      // Short timeout to fail fast if backend is not running
+      final response = await http
+          .get(Uri.parse('http://127.0.0.1:8000/serial/ports'))
+          .timeout(const Duration(seconds: 2));
+
+      if (response.statusCode == 200 && mounted) {
+        setState(() {
+          _portError = null; // Clear previous errors
+          _availablePorts = jsonDecode(response.body);
+          // If the currently selected port is not in the list, clear it
+          if (_selectedPort != null &&
+              !_availablePorts!.any((p) => p['device'] == _selectedPort)) {
+            _selectedPort = null;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load serial ports: $e");
+      if (mounted) {
+        setState(() {
+          _portError = AppStrings.get(
+              localeNotifier.value, AppKeys.backendConnectionError);
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingPorts = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveSerialPort(String? port) async {
+    if (port == null) return;
+    await ConfigService.saveSerialPort(port);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${AppStrings.get(localeNotifier.value, AppKeys.portSaved)} $port',
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +157,113 @@ class SettingsPage extends StatelessWidget {
 
                         const SizedBox(height: 20),
 
+                        // Serial Port Selector
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.usb),
+                                const SizedBox(width: 16),
+                                Text(
+                                  AppStrings.get(currentLocale, AppKeys.serialPort),
+                                ),
+                                const Spacer(),
+                                SizedBox(
+                                  width: 250, // Constrain width
+                                  child: _isLoadingPorts
+                                      ? const Center(
+                                          child: SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 3),
+                                          ),
+                                        )
+                                      : _portError != null
+                                          ? Row(
+                                            children: [
+                                              Icon(Icons.error_outline,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .error),
+                                              const SizedBox(width: 8),
+                                              Flexible(
+                                                child: Tooltip(
+                                                  message: _portError!,
+                                                  child: Text(
+                                                    AppStrings.get(
+                                                        currentLocale,
+                                                        AppKeys.errorPrefix),
+                                                    style: TextStyle(
+                                                        color: Theme.of(context)
+                                                            .colorScheme
+                                                            .error),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                          : DropdownButton<String>(
+                                              value: _selectedPort,
+                                              isExpanded: true,
+                                              hint: Align(
+                                                alignment: Alignment.centerRight,
+                                                child: Text(
+                                                  AppStrings.get(
+                                                    currentLocale,
+                                                    _availablePorts?.isEmpty ?? true
+                                                        ? AppKeys.noPortsFound
+                                                        : AppKeys.selectPort,
+                                                  ),
+                                                ),
+                                              ),
+                                              underline: const SizedBox(),
+                                              selectedItemBuilder:
+                                                  (BuildContext context) {
+                                                return _availablePorts
+                                                        ?.map<Widget>(
+                                                            (port) => Align(
+                                                                  alignment:
+                                                                      Alignment.centerRight,
+                                                                  child: Text(
+                                                                    port['device'],
+                                                                    overflow:
+                                                                        TextOverflow.ellipsis,
+                                                                  ),
+                                                                ))
+                                                        .toList() ??
+                                                    [];
+                                              },
+                                              items: _availablePorts?.map((port) {
+                                                return DropdownMenuItem<String>(
+                                                  value: port['device'],
+                                                  child: Text(
+                                                    '${port['device']} (${port['description']})',
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                );
+                                              }).toList(),
+                                              onChanged: (String? newValue) {
+                                                if (newValue != null) {
+                                                  setState(() {
+                                                    _selectedPort = newValue;
+                                                  });
+                                                  _saveSerialPort(newValue);
+                                                }
+                                              },
+                                            ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
                         // Language Selector
                         Card(
                           child: Padding(
@@ -87,44 +282,66 @@ class SettingsPage extends StatelessWidget {
                                   ),
                                 ),
                                 const Spacer(),
-                                DropdownButton<String>(
-                                  value: currentLocale.languageCode,
-                                  underline: const SizedBox(),
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: 'en',
-                                      child: Text('English (EN)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'it',
-                                      child: Text('Italiano (IT)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'es',
-                                      child: Text('Español (ES)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'fr',
-                                      child: Text('Français (FR)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'de',
-                                      child: Text('Deutsch (DE)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'zh',
-                                      child: Text('中文 (ZH)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'ja',
-                                      child: Text('日本語 (JA)'),
-                                    ),
-                                  ],
-                                  onChanged: (String? newValue) {
-                                    if (newValue != null) {
-                                      localeNotifier.setLocale(newValue);
-                                    }
-                                  },
+                                SizedBox(
+                                  width: 150, // Constrain width
+                                  child: DropdownButton<String>(
+                                    value: currentLocale.languageCode,
+                                    isExpanded: true,
+                                    underline: const SizedBox(),
+                                    selectedItemBuilder: (context) {
+                                      // We need a map from lang code to full text for the selected item
+                                      const langMap = {
+                                        'en': 'English (EN)',
+                                        'it': 'Italiano (IT)',
+                                        'es': 'Español (ES)',
+                                        'fr': 'Français (FR)',
+                                        'de': 'Deutsch (DE)',
+                                        'zh': '中文 (ZH)',
+                                        'ja': '日本語 (JA)',
+                                      };
+                                      return langMap.entries
+                                          .map((entry) => Align(
+                                                alignment: Alignment.centerRight,
+                                                child: Text(entry.value),
+                                              ))
+                                          .toList();
+                                    },
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 'en',
+                                        child: Text('English (EN)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'it',
+                                        child: Text('Italiano (IT)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'es',
+                                        child: Text('Español (ES)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'fr',
+                                        child: Text('Français (FR)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'de',
+                                        child: Text('Deutsch (DE)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'zh',
+                                        child: Text('中文 (ZH)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'ja',
+                                        child: Text('日本語 (JA)'),
+                                      ),
+                                    ],
+                                    onChanged: (String? newValue) {
+                                      if (newValue != null) {
+                                        localeNotifier.setLocale(newValue);
+                                      }
+                                    },
+                                  ),
                                 ),
                               ],
                             ),
