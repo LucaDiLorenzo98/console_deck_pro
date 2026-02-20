@@ -6,8 +6,10 @@ import subprocess
 import pyautogui
 import screen_brightness_control as sbc
 import os
-import sys
 import threading
+import platform
+from pathlib import Path
+import queue
 import psutil
 from fastapi import FastAPI
 from threading import Thread, Event
@@ -21,13 +23,40 @@ try:
 except ImportError:
     HAS_GPUTIL = False
 
-# Debug Configuration
-ENABLE_TELEMETRY_LOG = True
+# Debug / Logging Configuration
+# Printing telemetry every 0.5s can cause micro-stutters on some systems due to console I/O.
+ENABLE_TELEMETRY_LOG = os.getenv("CONSOLE_DECK_PRO_TELEMETRY_LOG", "0") in ("1", "true", "True")
 
-# Configuration
 APP_NAME = "ConsoleDeckPro"
-APP_DIR = os.path.join(os.getenv('APPDATA'), APP_NAME)
-CONFIG_FILE = os.path.join(APP_DIR, 'config.json')
+
+def _default_app_dir() -> str:
+    """
+    Cross-platform, user-writable config directory.
+    Override with CONSOLE_DECK_PRO_DIR or CONSOLE_DECK_PRO_CONFIG.
+    """
+    override = os.getenv("CONSOLE_DECK_PRO_DIR")
+    if override:
+        return override
+
+    system = platform.system()
+    home = Path.home()
+
+    if system == "Windows":
+        appdata = os.getenv("APPDATA") or os.getenv("LOCALAPPDATA")
+        if appdata:
+            return str(Path(appdata) / APP_NAME)
+        return str(home / "AppData" / "Roaming" / APP_NAME)
+
+    if system == "Darwin":
+        return str(home / "Library" / "Application Support" / APP_NAME)
+
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    if xdg:
+        return str(Path(xdg) / APP_NAME)
+    return str(home / ".config" / APP_NAME)
+
+APP_DIR = _default_app_dir()
+CONFIG_FILE = os.getenv("CONSOLE_DECK_PRO_CONFIG") or os.path.join(APP_DIR, "config.json")
 
 # Ensure the app directory exists
 os.makedirs(APP_DIR, exist_ok=True)
@@ -55,16 +84,23 @@ def run_server():
     # Uvicorn logging can be noisy, this can be changed to 'info' for more detail
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
 
+def _default_config():
+    return {
+        "serial": {
+            "port": None,
+            "baud_rate": 115200
+        },
+        "mappings": {}
+    }
+
 def load_config():
+    default_config = _default_config()
+    config_dir = os.path.dirname(CONFIG_FILE)
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
+
     if not os.path.exists(CONFIG_FILE):
         print(f"Info: {CONFIG_FILE} not found. Creating a new one with default values.")
-        default_config = {
-            "serial": {
-                "port": None,
-                "baud_rate": 115200
-            },
-            "mappings": {}
-        }
         try:
             with open(CONFIG_FILE, 'w') as f:
                 json.dump(default_config, f, indent=4)
@@ -77,11 +113,27 @@ def load_config():
         with open(CONFIG_FILE, 'r') as f:
             content = f.read()
             if not content.strip():
-                print(f"Warning: {CONFIG_FILE} is empty. Using default values.")
-                return {"serial": {"port": None}, "mappings": {}}
-            return json.loads(content)
+                print(f"Warning: {CONFIG_FILE} is empty. Resetting to default values.")
+                with open(CONFIG_FILE, 'w') as wf:
+                    json.dump(default_config, wf, indent=4)
+                return default_config
+            return json.loads(content) or default_config
     except json.JSONDecodeError as e:
-        print(f"Error parsing {CONFIG_FILE}: {e}")
+        print(f"Error parsing {CONFIG_FILE}: {e}. Backing up and resetting to defaults.")
+        try:
+            backup_path = f"{CONFIG_FILE}.bad.{int(time.time())}"
+            os.replace(CONFIG_FILE, backup_path)
+            print(f"Info: bad config moved to {backup_path}")
+        except Exception:
+            pass
+        try:
+            with open(CONFIG_FILE, 'w') as wf:
+                json.dump(default_config, wf, indent=4)
+            return default_config
+        except Exception:
+            return None
+    except Exception as e:
+        print(f"Error reading {CONFIG_FILE}: {e}")
         return None
 
 def execute_action(action_def, absolute_value=None, multiplier=1):
@@ -89,22 +141,8 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
     if not config_data:
         config_data = load_config()
 
-    if not action_def:
+    if not action_def or not isinstance(action_def, dict):
         return
-
-    # Use the latest config for mappings
-    mappings = config_data.get('mappings', {})
-    
-    # The action_def key (e.g., 'btn_1') is needed to look up the fresh definition
-    action_key = None
-    for key, value in mappings.items():
-        if value == action_def:
-            action_key = key
-            break
-            
-    if action_key:
-        action_def = mappings.get(action_key, action_def)
-
 
     action_type = action_def.get('action')
     value = action_def.get('value')
@@ -156,6 +194,7 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
              key = 'volumeup' if float(value) > 0 else 'volumedown'
              count = int(round(abs(float(value)) * multiplier))
              if count < 1: count = 1
+             if count > 25: count = 25
              
              print(f"     Change Volume: {key} x {count}")
              for _ in range(count):
@@ -170,6 +209,185 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
             print(f"     [WARNING] Unknown action type: {action_type}")
     except Exception as e:
         print(f"     [ERROR] Failed to execute action: {e}")
+
+def _get_gpu_stats():
+    """
+    Best-effort GPU utilization (%) and temperature (C).
+    Returns (-1, -1) when unavailable.
+    """
+    if HAS_GPUTIL:
+        try:
+            gpus = GPUtil.getGPUs()
+            if gpus:
+                return int(gpus[0].load * 100), int(gpus[0].temperature)
+        except Exception:
+            pass
+
+    try:
+        # Avoid shell=True for performance and safety.
+        proc = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=utilization.gpu,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+            check=False,
+        )
+        out = (proc.stdout or "").strip()
+        if out:
+            parts = [p.strip() for p in out.split(",")]
+            if len(parts) >= 2:
+                return int(parts[0]), int(parts[1])
+    except Exception:
+        pass
+
+    return -1, -1
+
+
+class ActionExecutor:
+    """
+    Executes actions on a background thread so serial I/O stays responsive.
+    """
+
+    def __init__(self, max_queue=256):
+        self._q = queue.Queue(maxsize=max_queue)
+        self._stop = Event()
+        self._thread = Thread(target=self._run, daemon=True)
+
+    def start(self):
+        self._thread.start()
+        return self
+
+    def stop(self):
+        self._stop.set()
+
+    def submit(self, action_def, absolute_value=None, multiplier=1):
+        if not action_def:
+            return
+        item = (action_def, absolute_value, multiplier)
+        try:
+            self._q.put_nowait(item)
+        except queue.Full:
+            # Drop one item to keep latency bounded.
+            try:
+                self._q.get_nowait()
+                self._q.task_done()
+            except queue.Empty:
+                pass
+            try:
+                self._q.put_nowait(item)
+            except queue.Full:
+                pass
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                action_def, absolute_value, multiplier = self._q.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            try:
+                execute_action(action_def, absolute_value=absolute_value, multiplier=multiplier)
+            except Exception as e:
+                print(f"     [ERROR] Action worker failed: {e}")
+            finally:
+                self._q.task_done()
+
+
+class TelemetrySampler:
+    """
+    Samples telemetry on a background thread to avoid blocking the serial loop.
+    """
+
+    def __init__(self, interval_s=0.5, slow_interval_s=2.0):
+        self._interval_s = float(interval_s)
+        self._slow_interval_s = float(slow_interval_s)
+        self._stop = Event()
+        self._lock = threading.Lock()
+        self._thread = Thread(target=self._run, daemon=True)
+        self._snapshot = {
+            "cpu": 0,
+            "gpu": -1,
+            "ram": 0,
+            "temp_cpu": -1,
+            "temp_gpu": -1,
+            "down_speed": 0.0,
+            "up_speed": 0.0,
+        }
+
+    def start(self):
+        # Prime cpu_percent() so the first read isn't 0/meaningless.
+        try:
+            psutil.cpu_percent(interval=None)
+        except Exception:
+            pass
+        self._thread.start()
+        return self
+
+    def stop(self):
+        self._stop.set()
+
+    def get_snapshot(self):
+        with self._lock:
+            return dict(self._snapshot)
+
+    def _run(self):
+        last_net_recv, last_net_sent = get_net_bytes()
+        last_time = time.monotonic()
+        next_slow = 0.0
+        gpu = -1
+        temp_gpu = -1
+        temp_cpu = -1
+
+        while not self._stop.is_set():
+            now = time.monotonic()
+            dt = now - last_time
+            if dt <= 0:
+                dt = self._interval_s
+
+            # Fast metrics (every tick)
+            try:
+                cpu = int(psutil.cpu_percent(interval=None))
+            except Exception:
+                cpu = 0
+
+            try:
+                ram = int(psutil.virtual_memory().percent)
+            except Exception:
+                ram = 0
+
+            curr_recv, curr_sent = get_net_bytes()
+            delta_recv = max(0, curr_recv - last_net_recv)
+            delta_sent = max(0, curr_sent - last_net_sent)
+            down_speed = (delta_recv * 8) / 1_000_000.0 / dt
+            up_speed = (delta_sent * 8) / 1_000_000.0 / dt
+            last_net_recv, last_net_sent = curr_recv, curr_sent
+            last_time = now
+
+            # Slow metrics (temperature/GPU) on a slower cadence
+            if now >= next_slow:
+                gpu, temp_gpu = _get_gpu_stats()
+                temp_cpu = get_cpu_temp()
+                if temp_cpu <= 0:
+                    temp_cpu = -1
+                next_slow = now + self._slow_interval_s
+
+            with self._lock:
+                self._snapshot.update(
+                    {
+                        "cpu": cpu,
+                        "gpu": gpu,
+                        "ram": ram,
+                        "temp_cpu": temp_cpu,
+                        "temp_gpu": temp_gpu,
+                        "down_speed": float(down_speed),
+                        "up_speed": float(up_speed),
+                    }
+                )
+
+            self._stop.wait(self._interval_s)
 
 def main():
     global config_data
@@ -250,113 +468,89 @@ def run_device_loop(ser):
     prev_ext_btns = [0] * 6
     prev_slider_vals = [None, None]
     prev_knob_vals = [None, None]
-    
-    last_stats_time = 0
-    last_net_recv, last_net_sent = get_net_bytes()
 
-    while True: # This loop will run as long as the device is connected
-        try:
-            # CHECK FOR CONFIGURATION UPDATES (THE FIX)
-            # This is the most important part of the fix.
-            # We check if the UI has signaled a reload on every loop.
-            if config_updated_event.is_set():
-                print("\n[INFO] Reloading configuration in device loop...")
-                config_data = load_config()
-                config_updated_event.clear() # Reset the signal
+    action_executor = ActionExecutor().start()
+    telemetry = TelemetrySampler(interval_s=0.5, slow_interval_s=2.0).start()
 
-            current_time = time.time()
-            
-            # --- SEND STATS TO ARDUINO (Every 0.5 seconds) ---
-            if current_time - last_stats_time > 0.5:
-                # 1. CPU
-                cpu = int(psutil.cpu_percent())
-                
-                # 2. GPU
-                gpu = -1
-                temp_gpu = -1
-                
-                # GPUtil
-                if HAS_GPUTIL:
-                    try:
-                        gpus = GPUtil.getGPUs()
-                        if gpus:
-                            gpu = int(gpus[0].load * 100)
-                            temp_gpu = int(gpus[0].temperature)
-                    except: pass
-                
-                # Nvidia-SMI Fallback
-                if gpu == -1:
-                    try:
-                            cmd = "nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits"
-                            output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
-                            parts_gpu = output.split(',')
-                            if len(parts_gpu) >= 2:
-                                gpu = int(parts_gpu[0].strip())
-                                temp_gpu = int(parts_gpu[1].strip())
-                    except: pass
+    stats_interval_s = 0.5
+    next_stats_time = time.monotonic()
 
-                # 3. RAM
-                ram = int(psutil.virtual_memory().percent)
-                
-                # 4. CPU TEMP
-                temp_cpu = get_cpu_temp()
-                if temp_cpu <= 0: temp_cpu = -1 # Final sanity check
+    try:
+        while True:  # This loop will run as long as the device is connected
+            try:
+                if config_updated_event.is_set():
+                    print("\n[INFO] Reloading configuration in device loop...")
+                    config_data = load_config()
+                    config_updated_event.clear()
 
-                # 5. NETWORK
-                down_speed = 0.0
-                up_speed = 0.0
-                curr_recv, curr_sent = get_net_bytes()
-                
-                time_diff = current_time - last_stats_time
-                if time_diff < 0.1: time_diff = 0.5
-                
-                if last_stats_time != 0 and last_net_recv > 0:
-                        delta_recv = max(0, curr_recv - last_net_recv)
-                        delta_sent = max(0, curr_sent - last_net_sent)
-                        
-                        # Mbps
-                        down_speed = (delta_recv * 8) / 1000000.0 / time_diff
-                        up_speed = (delta_sent * 8) / 1000000.0 / time_diff
-                
-                last_net_recv = curr_recv
-                last_net_sent = curr_sent
-                last_stats_time = current_time
-                
-                # Format
-                stats_msg = f"STATS:{cpu},{gpu},{ram},{temp_cpu},{temp_gpu},{down_speed:.1f},{up_speed:.1f}\n"
-                ser.write(stats_msg.encode('utf-8'))
-                if ENABLE_TELEMETRY_LOG:
-                    gpu_str = f"{gpu}%" if gpu != -1 else "N/A"
-                    tq_str = f"{temp_cpu}C" if temp_cpu != -1 else "N/A"
-                    tg_str = f"{temp_gpu}C" if temp_gpu != -1 else "N/A"
-                    print(f"\r[STATS] CPU:{cpu}% Temp:{tq_str} | GPU:{gpu_str} Temp:{tg_str} | RAM:{ram}% | Net:D{down_speed:.1f}Mb/U{up_speed:.1f}Mb", end="")
+                now = time.monotonic()
+                # Bound the blocking read so config reloads and stats remain responsive.
+                timeout = max(0.0, next_stats_time - now)
+                if timeout > 0.2:
+                    timeout = 0.2
+                ser.timeout = timeout
 
-            # Read all waiting data and process each line.
-            if ser.in_waiting > 0:
-                print() # Newline to separate stats from events
-                data = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
-                lines = data.strip().split('\n')
+                raw = ser.readline()
+                if raw:
+                    text = raw.decode("utf-8", errors="ignore")
+                    for line in text.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        process_serial_line(
+                            line,
+                            prev_main_btns,
+                            prev_enc_click,
+                            prev_enc_val,
+                            prev_ext_btns,
+                            prev_slider_vals,
+                            prev_knob_vals,
+                            action_executor,
+                        )
 
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    
-                    # Process the most recent complete line
-                    process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev_ext_btns, prev_slider_vals, prev_knob_vals)
-            
-            time.sleep(0.001)
+                now = time.monotonic()
+                if now >= next_stats_time:
+                    snap = telemetry.get_snapshot()
+                    cpu = snap["cpu"]
+                    gpu = snap["gpu"]
+                    ram = snap["ram"]
+                    temp_cpu = snap["temp_cpu"]
+                    temp_gpu = snap["temp_gpu"]
+                    down_speed = snap["down_speed"]
+                    up_speed = snap["up_speed"]
 
-        except (serial.SerialException, OSError) as e:
-            print(f"\n[ERROR] Device disconnected or serial error: {e}")
-            ser.close()
-            return # Exit this function to allow main() to try reconnecting
-        except Exception as e:
-            print(f"\n[ERROR] An error occurred in device loop: {e}")
-            time.sleep(1)
+                    stats_msg = (
+                        f"STATS:{cpu},{gpu},{ram},{temp_cpu},{temp_gpu},{down_speed:.1f},{up_speed:.1f}\n"
+                    )
+                    ser.write(stats_msg.encode("utf-8"))
+                    if ENABLE_TELEMETRY_LOG:
+                        gpu_str = f"{gpu}%" if gpu != -1 else "N/A"
+                        tq_str = f"{temp_cpu}C" if temp_cpu != -1 else "N/A"
+                        tg_str = f"{temp_gpu}C" if temp_gpu != -1 else "N/A"
+                        print(
+                            f"\r[STATS] CPU:{cpu}% Temp:{tq_str} | GPU:{gpu_str} Temp:{tg_str} | RAM:{ram}% | Net:D{down_speed:.1f}Mb/U{up_speed:.1f}Mb",
+                            end="",
+                        )
+
+                    # Keep cadence stable even if we fell behind.
+                    next_stats_time = now + stats_interval_s
+
+            except (serial.SerialException, OSError) as e:
+                print(f"\n[ERROR] Device disconnected or serial error: {e}")
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+                return
+            except Exception as e:
+                print(f"\n[ERROR] An error occurred in device loop: {e}")
+                time.sleep(0.2)
+    finally:
+        telemetry.stop()
+        action_executor.stop()
 
 
-def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev_ext_btns, prev_slider_vals, prev_knob_vals):
+def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev_ext_btns, prev_slider_vals, prev_knob_vals, action_executor):
     """
     Parses a single line of serial data and executes actions.
     This function is extracted to be callable for each line received.
@@ -372,12 +566,19 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
         current_enc_click = int(parts[9])
         current_enc_val = int(parts[10])
         module_id = int(parts[11])
+
+        mappings = {}
+        try:
+            if config_data and isinstance(config_data, dict):
+                mappings = config_data.get("mappings", {}) or {}
+        except Exception:
+            mappings = {}
         
         for i in range(9):
             if current_main_btns[i] == 1 and prev_main_btns[i] == 0:
                 print(f"[EVENT] Main Button {i+1} Pressed")
                 btn_key = f"btn_{i+1}"
-                execute_action(config_data['mappings'].get(btn_key))
+                action_executor.submit(mappings.get(btn_key))
         # Update state for the next line processing
         for i in range(9):
             prev_main_btns[i] = current_main_btns[i]
@@ -387,7 +588,7 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
         # This part might need more robust state management if issues arise.
         if current_enc_click == 1 and prev_enc_click[0] == 0:
             print(f"[EVENT] Encoder Clicked (Short)")
-            execute_action(config_data['mappings'].get('enc_click'))
+            action_executor.submit(mappings.get('enc_click'))
         prev_enc_click[0] = current_enc_click
 
 
@@ -398,10 +599,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 
                 if diff > 0:
                     print(f"[EVENT] Encoder Rotated CW (x{multiplier})")
-                    execute_action(config_data['mappings'].get('enc_cw'), multiplier=multiplier)
+                    action_executor.submit(mappings.get('enc_cw'), multiplier=multiplier)
                 elif diff < 0:
                     print(f"[EVENT] Encoder Rotated CCW (x{multiplier})")
-                    execute_action(config_data['mappings'].get('enc_ccw'), multiplier=multiplier)
+                    action_executor.submit(mappings.get('enc_ccw'), multiplier=multiplier)
         prev_enc_val[0] = current_enc_val
 
         if module_id == 1: # Buttons
@@ -411,7 +612,7 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                         if current_ext_btns[i] == 1 and prev_ext_btns[i] == 0:
                             print(f"[EVENT] Ext Button {i+1} Pressed")
                             btn_key = f"ext_btn_{i+1}"
-                            execute_action(config_data['mappings'].get(btn_key))
+                            action_executor.submit(mappings.get(btn_key))
                 for i in range(6):
                     prev_ext_btns[i] = current_ext_btns[i]
                 
@@ -425,10 +626,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 prev_vals = prev_slider_vals if is_slider else prev_knob_vals
                 
                 def handle_analog(curr, prev, name):
-                    abs_mapping = config_data['mappings'].get(name)
+                    abs_mapping = mappings.get(name)
                     if abs_mapping:
                         if curr != prev:
-                            execute_action(abs_mapping, absolute_value=curr)
+                            action_executor.submit(abs_mapping, absolute_value=curr)
                         return curr
 
                     if prev is None: return curr
@@ -436,10 +637,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                     if abs(diff) > 2:
                         if diff > 0:
                             print(f"[EVENT] {name} Moved UP/CW (Val: {curr})")
-                            execute_action(config_data['mappings'].get(f"{name}_up" if is_slider else f"{name}_cw"))
+                            action_executor.submit(mappings.get(f"{name}_up" if is_slider else f"{name}_cw"))
                         else:
                             print(f"[EVENT] {name} Moved DOWN/CCW (Val: {curr})")
-                            execute_action(config_data['mappings'].get(f"{name}_down" if is_slider else f"{name}_ccw"))
+                            action_executor.submit(mappings.get(f"{name}_down" if is_slider else f"{name}_ccw"))
                         return curr
                     return prev
 
@@ -453,14 +654,9 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
 # --- HELPER FUNCTIONS ---
 def get_net_bytes():
     try:
-        counters = psutil.net_io_counters(pernic=True)
-        rx = 0
-        tx = 0
-        for nic, c in counters.items():
-            rx += c.bytes_recv
-            tx += c.bytes_sent
-        return rx, tx
-    except:
+        c = psutil.net_io_counters()
+        return int(c.bytes_recv), int(c.bytes_sent)
+    except Exception:
         return 0, 0
 
 def get_cpu_temp():
@@ -475,19 +671,23 @@ def get_cpu_temp():
                     if val > 0: 
                         t = val
                         break
-    except:
+    except Exception:
         pass
     
-    # If invalid, Try WMI
-    if t <= 0:
+    # If invalid, Try WMI (Windows only)
+    if t <= 0 and platform.system() == "Windows":
         try:
             ps_cmd = "Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace \"root/wmi\" | Select -ExpandProperty CurrentTemperature"
-            out = subprocess.check_output(["powershell", "-c", ps_cmd], creationflags=subprocess.CREATE_NO_WINDOW).decode().strip()
+            kwargs = {}
+            # CREATE_NO_WINDOW is not defined on non-Windows and may not exist in some environments.
+            if hasattr(subprocess, "CREATE_NO_WINDOW"):
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            out = subprocess.check_output(["powershell", "-c", ps_cmd], **kwargs).decode().strip()
             if out and out.isdigit():
                 kelvin_x10 = int(out)
                 cels = (kelvin_x10 / 10.0) - 273.15
                 t = int(cels)
-        except:
+        except Exception:
             pass
     return t
 
@@ -499,4 +699,8 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[FATAL] An unhandled exception occurred in main: {e}")
         
-    input("\n[INFO] Press Enter to close this window...")
+    try:
+        if os.isatty(0):
+            input("\n[INFO] Press Enter to close this window...")
+    except Exception:
+        pass
