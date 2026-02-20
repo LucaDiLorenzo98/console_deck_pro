@@ -11,6 +11,9 @@ class ConfigService {
 
   static Future<File> get _configFile async {
     Directory appDir;
+    // Legacy location (pre-unification). Used for one-time migration on desktop.
+    Directory? legacyDir;
+
     // On Windows, path_provider creates a subfolder with the app's ID.
     // The Python script expects the config directly in AppData/Roaming/ConsoleDeckPro.
     // To match this, we get the standard app support directory and navigate up to the parent
@@ -21,6 +24,24 @@ class ConfigService {
       // We need to go up two levels to get to AppData/Roaming
       final roamingDir = appSupportDir.parent.parent;
       appDir = Directory(p.join(roamingDir.path, _appName));
+    } else if (Platform.isMacOS) {
+      // Match Python backend: ~/Library/Application Support/ConsoleDeckPro
+      final appSupportDir = await getApplicationSupportDirectory();
+      final applicationSupportRoot = appSupportDir.parent; // .../Library/Application Support
+      appDir = Directory(p.join(applicationSupportRoot.path, _appName));
+      legacyDir = Directory(p.join(appSupportDir.path, _appName));
+    } else if (Platform.isLinux) {
+      // Match Python backend: $XDG_CONFIG_HOME/ConsoleDeckPro or ~/.config/ConsoleDeckPro
+      final xdg = Platform.environment['XDG_CONFIG_HOME'];
+      final home = Platform.environment['HOME'];
+      final base = (xdg != null && xdg.isNotEmpty)
+          ? xdg
+          : (home != null && home.isNotEmpty)
+              ? p.join(home, '.config')
+              : (await getApplicationSupportDirectory()).path;
+      appDir = Directory(p.join(base, _appName));
+      final appSupportDir = await getApplicationSupportDirectory();
+      legacyDir = Directory(p.join(appSupportDir.path, _appName));
     } else {
       // For other platforms, use the standard sandboxed directory.
       final directory = await getApplicationSupportDirectory();
@@ -31,8 +52,28 @@ class ConfigService {
       await appDir.create(recursive: true);
     }
     final filePath = p.join(appDir.path, _fileName);
+
+    // One-time migration from legacy desktop location if needed.
+    if (legacyDir != null) {
+      final legacyPath = p.join(legacyDir.path, _fileName);
+      final legacyFile = File(legacyPath);
+      final newFile = File(filePath);
+      if (!await newFile.exists() && await legacyFile.exists()) {
+        try {
+          await legacyFile.copy(filePath);
+          if (kDebugMode) {
+            print('[ConfigService] Migrated config from $legacyPath to $filePath');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('[ConfigService] Failed to migrate legacy config: $e');
+          }
+        }
+      }
+    }
+
     if (kDebugMode) {
-      print('[ConfigService] Using corrected config file path: $filePath');
+      print('[ConfigService] Using config file path: $filePath');
     }
     return File(filePath);
   }
