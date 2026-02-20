@@ -4,6 +4,7 @@ import 'l10n/app_translations.dart';
 import 'pages/home_page.dart';
 import 'pages/modules_page.dart';
 import 'pages/settings_page.dart';
+import 'services/config_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
@@ -71,6 +72,21 @@ class _HomeScreenState extends State<HomeScreen> {
         final isConfigured = body['configured'] == true;
         newStatus =
             isConfigured ? BackendStatus.connected : BackendStatus.notConfigured;
+      } else if (response.statusCode == 404) {
+        // Backward compatibility with older backend versions.
+        final fallback = await http
+            .get(Uri.parse('http://127.0.0.1:8000/serial/ports'))
+            .timeout(const Duration(seconds: 2));
+        if (fallback.statusCode == 200) {
+          final config = await ConfigService.loadConfig();
+          final serialConfig = config['serial'] as Map<String, dynamic>? ?? {};
+          final port = serialConfig['port'];
+          newStatus = (port is String && port.isNotEmpty)
+              ? BackendStatus.connected
+              : BackendStatus.notConfigured;
+        } else {
+          newStatus = BackendStatus.backendDown;
+        }
       } else {
         newStatus = BackendStatus.backendDown;
       }
