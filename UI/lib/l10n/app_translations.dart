@@ -85,6 +85,25 @@ class AppKeys {
   static const String fileSavedPrefix = 'file_saved_prefix';
   static const String errorPrefix = 'error_prefix';
   static const String clear = 'clear';
+  static const String mediaDeckLeft = 'media_deck_left';
+  static const String mediaDeckRight = 'media_deck_right';
+  static const String mediaSelectTrack = 'media_select_track';
+  static const String mediaNoTrackSelected = 'media_no_track_selected';
+  static const String mediaTogglePlay = 'media_toggle_play';
+  static const String mediaStop = 'media_stop';
+  static const String mediaJogBackward = 'media_jog_backward';
+  static const String mediaJogForward = 'media_jog_forward';
+  static const String mediaCrossfader = 'media_crossfader';
+  static const String mediaResetCrossfader = 'media_reset_crossfader';
+  static const String mediaHintLongPress = 'media_hint_long_press';
+  static const String pianoHintTap = 'piano_hint_tap';
+  static const String pianoHintLongPress = 'piano_hint_long_press';
+  static const String pianoUseDefaultNote = 'piano_use_default_note';
+  static const String pianoAssignedFile = 'piano_assigned_file';
+  static const String pianoResetToNote = 'piano_reset_to_note';
+  static const String pianoPickAudio = 'piano_pick_audio';
+  static const String pianoPlaySample = 'piano_play_sample';
+  static const String audioFileMissing = 'audio_file_missing';
 }
 
 class AppStrings {
@@ -170,6 +189,28 @@ class AppStrings {
       AppKeys.errorPrefix: 'Error:',
       AppKeys.openFolder: 'Open Folder',
       AppKeys.clear: 'Clear',
+      AppKeys.mediaDeckLeft: 'Left Deck',
+      AppKeys.mediaDeckRight: 'Right Deck',
+      AppKeys.mediaSelectTrack: 'Select audio track',
+      AppKeys.mediaNoTrackSelected: 'No track selected',
+      AppKeys.mediaTogglePlay: 'Play/Pause',
+      AppKeys.mediaStop: 'Stop',
+      AppKeys.mediaJogBackward: 'Jog Back',
+      AppKeys.mediaJogForward: 'Jog Forward',
+      AppKeys.mediaCrossfader: 'Crossfader',
+      AppKeys.mediaResetCrossfader: 'Reset to center',
+      AppKeys.mediaHintLongPress:
+          'Tap knobs to play/pause. Long press to choose track.',
+      AppKeys.pianoHintTap: 'Tap a key to play.',
+      AppKeys.pianoHintLongPress:
+          'Long press a key to assign a custom audio file.',
+      AppKeys.pianoUseDefaultNote: 'Use default note',
+      AppKeys.pianoAssignedFile: 'Assigned file',
+      AppKeys.pianoResetToNote: 'Reset key to note',
+      AppKeys.pianoPickAudio: 'Pick audio file',
+      AppKeys.pianoPlaySample: 'Play sample',
+      AppKeys.audioFileMissing:
+          'Audio file not found. Playing default note instead.',
     },
     'it': {
       AppKeys.home: 'Home',
@@ -254,6 +295,28 @@ class AppStrings {
       AppKeys.errorPrefix: 'Errore:',
       AppKeys.openFolder: 'Apri Cartella',
       AppKeys.clear: 'Pulisci',
+      AppKeys.mediaDeckLeft: 'Deck Sinistro',
+      AppKeys.mediaDeckRight: 'Deck Destro',
+      AppKeys.mediaSelectTrack: 'Seleziona traccia audio',
+      AppKeys.mediaNoTrackSelected: 'Nessuna traccia selezionata',
+      AppKeys.mediaTogglePlay: 'Play/Pausa',
+      AppKeys.mediaStop: 'Stop',
+      AppKeys.mediaJogBackward: 'Jog Indietro',
+      AppKeys.mediaJogForward: 'Jog Avanti',
+      AppKeys.mediaCrossfader: 'Crossfader',
+      AppKeys.mediaResetCrossfader: 'Reset al centro',
+      AppKeys.mediaHintLongPress:
+          'Tocca le manopole per play/pausa. Tieni premuto per scegliere la traccia.',
+      AppKeys.pianoHintTap: 'Tocca un tasto per suonare.',
+      AppKeys.pianoHintLongPress:
+          'Tieni premuto un tasto per assegnare un file audio personalizzato.',
+      AppKeys.pianoUseDefaultNote: 'Usa nota predefinita',
+      AppKeys.pianoAssignedFile: 'File assegnato',
+      AppKeys.pianoResetToNote: 'Resetta il tasto alla nota',
+      AppKeys.pianoPickAudio: 'Seleziona file audio',
+      AppKeys.pianoPlaySample: 'Riproduci campione',
+      AppKeys.audioFileMissing:
+          'File audio non trovato. Riproduco la nota predefinita.',
     },
     'es': {
       AppKeys.home: 'Inicio',

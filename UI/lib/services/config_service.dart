@@ -51,6 +51,7 @@ class ConfigService {
     return {
       'serial': {'port': null, 'baud_rate': 115200},
       'mappings': <String, dynamic>{},
+      'special_modules': <String, dynamic>{},
     };
   }
 
@@ -125,6 +126,61 @@ class ConfigService {
     }
   }
 
+  static Future<void> saveSpecialModuleConfig(
+    String moduleId,
+    Map<String, dynamic> moduleConfig, {
+    List<String> removeMappingKeys = const [],
+  }) async {
+    try {
+      final file = await _configFile;
+      final config = await _readConfigFile(file);
+
+      final specialModules = Map<String, dynamic>.from(
+        (config['special_modules'] as Map?) ?? const {},
+      );
+      specialModules[moduleId] = moduleConfig;
+      config['special_modules'] = specialModules;
+
+      if (removeMappingKeys.isNotEmpty) {
+        final mappings = Map<String, dynamic>.from(
+          (config['mappings'] as Map?) ?? const {},
+        );
+        for (final key in removeMappingKeys) {
+          mappings.remove(key);
+        }
+        config['mappings'] = mappings;
+      }
+
+      await _writeConfig(file, config);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error saving special module config: $e');
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>> loadSpecialModuleConfig(
+    String moduleId,
+  ) async {
+    try {
+      final config = await loadConfig();
+      final specialModules =
+          config['special_modules'] as Map<String, dynamic>? ?? {};
+      final data = specialModules[moduleId];
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error loading special module config: $e');
+      }
+    }
+    return {};
+  }
+
   static Future<void> _writeConfig(
     File file,
     Map<String, dynamic> config,
@@ -149,6 +205,7 @@ class ConfigService {
       return {
         'serial': {'port': null, 'baud_rate': 115200},
         'mappings': <String, dynamic>{},
+        'special_modules': <String, dynamic>{},
       };
     }
 
@@ -158,6 +215,7 @@ class ConfigService {
         return {
           'serial': {'port': null, 'baud_rate': 115200},
           'mappings': <String, dynamic>{},
+          'special_modules': <String, dynamic>{},
         };
       }
 
@@ -173,6 +231,9 @@ class ConfigService {
         normalized['mappings'] = Map<String, dynamic>.from(
           (normalized['mappings'] as Map?) ?? const {},
         );
+        normalized['special_modules'] = Map<String, dynamic>.from(
+          (normalized['special_modules'] as Map?) ?? const {},
+        );
         return normalized;
       }
     } catch (_) {
@@ -182,6 +243,7 @@ class ConfigService {
     return {
       'serial': {'port': null, 'baud_rate': 115200},
       'mappings': <String, dynamic>{},
+      'special_modules': <String, dynamic>{},
     };
   }
 

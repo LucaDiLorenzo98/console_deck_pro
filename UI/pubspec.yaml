@@ -17,6 +17,7 @@ dependencies:
   flutter_svg: ^2.2.3
   http: ^1.6.0
   path_provider: ^2.0.14
+  just_audio: any
 
 dev_dependencies:
   flutter_test:
