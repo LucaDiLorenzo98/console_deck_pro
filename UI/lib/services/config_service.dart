@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 class ConfigService {
   static const String _appName = "ConsoleDeckPro";
   static const String _fileName = "config.json";
+  static const String _backendBaseUrl = "http://127.0.0.1:8000";
 
   static Future<File> get _configFile async {
     Directory appDir;
@@ -41,34 +42,27 @@ class ConfigService {
   static Future<Map<String, dynamic>> loadConfig() async {
     try {
       final file = await _configFile;
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        return jsonDecode(content);
-      }
+      return _readConfigFile(file);
     } catch (e) {
       if (kDebugMode) {
         print('Error loading config: $e');
       }
     }
-    return {};
+    return {
+      'serial': {'port': null, 'baud_rate': 115200},
+      'mappings': <String, dynamic>{},
+    };
   }
 
   // Save specific mapping
   static Future<void> saveMapping(String key, String type, String value) async {
     try {
       final file = await _configFile;
-      Map<String, dynamic> config = {};
-
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        try {
-          config = jsonDecode(content);
-        } catch (_) {}
-      }
-
-      if (config['mappings'] == null) {
-        config['mappings'] = {};
-      }
+      final config = await _readConfigFile(file);
+      final mappings = Map<String, dynamic>.from(
+        (config['mappings'] as Map?) ?? const {},
+      );
+      config['mappings'] = mappings;
 
       final Map<String, dynamic> entry = {};
 
@@ -93,14 +87,14 @@ class ConfigService {
           entry['action'] = 'set_brightness';
           break;
         case 'None':
-          (config['mappings'] as Map).remove(key);
+          mappings.remove(key);
           await _writeConfig(file, config);
           return;
         default:
           return;
       }
 
-      config['mappings'][key] = entry;
+      mappings[key] = entry;
       await _writeConfig(file, config);
     } catch (e) {
       if (kDebugMode) {
@@ -112,19 +106,16 @@ class ConfigService {
   static Future<void> saveSerialPort(String port) async {
     try {
       final file = await _configFile;
-      Map<String, dynamic> config = {};
-
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        try {
-          config = jsonDecode(content);
-        } catch (_) {}
+      final config = await _readConfigFile(file);
+      final serial = Map<String, dynamic>.from(
+        (config['serial'] as Map?) ?? const {},
+      );
+      final currentPort = serial['port'] as String?;
+      if (currentPort == port) {
+        return;
       }
-
-      if (config['serial'] == null) {
-        config['serial'] = {};
-      }
-      config['serial']['port'] = port;
+      serial['port'] = port;
+      config['serial'] = serial;
 
       await _writeConfig(file, config);
     } catch (e) {
@@ -143,12 +134,55 @@ class ConfigService {
 
     // Trigger reload in python backend
     try {
-      await http.post(Uri.parse('http://127.0.0.1:8000/reload'));
+      await http
+          .post(Uri.parse('$_backendBaseUrl/reload'))
+          .timeout(const Duration(seconds: 1));
     } catch (e) {
       if (kDebugMode) {
         print('Error triggering reload: $e');
       }
     }
+  }
+
+  static Future<Map<String, dynamic>> _readConfigFile(File file) async {
+    if (!await file.exists()) {
+      return {
+        'serial': {'port': null, 'baud_rate': 115200},
+        'mappings': <String, dynamic>{},
+      };
+    }
+
+    try {
+      final content = await file.readAsString();
+      if (content.trim().isEmpty) {
+        return {
+          'serial': {'port': null, 'baud_rate': 115200},
+          'mappings': <String, dynamic>{},
+        };
+      }
+
+      final decoded = jsonDecode(content);
+      if (decoded is Map) {
+        final normalized = Map<String, dynamic>.from(decoded);
+        final serial = Map<String, dynamic>.from(
+          (normalized['serial'] as Map?) ?? const {},
+        );
+        serial.putIfAbsent('port', () => null);
+        serial.putIfAbsent('baud_rate', () => 115200);
+        normalized['serial'] = serial;
+        normalized['mappings'] = Map<String, dynamic>.from(
+          (normalized['mappings'] as Map?) ?? const {},
+        );
+        return normalized;
+      }
+    } catch (_) {
+      // Fall through to a safe default config.
+    }
+
+    return {
+      'serial': {'port': null, 'baud_rate': 115200},
+      'mappings': <String, dynamic>{},
+    };
   }
 
   static List<String> _parseHotkey(String combo) {
@@ -174,6 +208,8 @@ class ConfigService {
       type = 'Hotkey';
       if (val is List) {
         value = val.join('+').toUpperCase(); // Convert ["ctrl", "c"] -> CTRL+C
+      } else if (val is String) {
+        value = val;
       }
     } else if (action == 'set_volume') {
       type = 'Volume';

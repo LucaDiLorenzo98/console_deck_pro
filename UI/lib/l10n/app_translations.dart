@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class AppKeys {
   static const String home = 'home';
   static const String modules = 'modules';
-  static const String skinCreator = 'Skin Creator';
+  static const String skinCreator = 'skin_creator';
   static const String settings = 'settings';
   static const String themeLight = 'theme_light';
   static const String themeDark = 'theme_dark';
@@ -92,6 +92,7 @@ class AppStrings {
     'en': {
       AppKeys.home: 'Home',
       AppKeys.modules: 'Modules',
+      AppKeys.skinCreator: 'Skin Creator',
       AppKeys.settings: 'Settings',
       AppKeys.themeLight: 'Light Theme',
       AppKeys.themeDark: 'Dark Theme',
@@ -173,6 +174,7 @@ class AppStrings {
     'it': {
       AppKeys.home: 'Home',
       AppKeys.modules: 'Moduli',
+      AppKeys.skinCreator: 'Creatore Skin',
       AppKeys.settings: 'Impostazioni',
       AppKeys.themeLight: 'Tema Chiaro',
       AppKeys.themeDark: 'Tema Scuro',
@@ -188,6 +190,8 @@ class AppStrings {
       AppKeys.typeLink: 'Link',
       AppKeys.typeApp: 'App',
       AppKeys.typeHotkey: 'Hotkey',
+      AppKeys.actionVolume: 'Volume',
+      AppKeys.actionBrightness: 'Luminosita',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://compra.com',
       AppKeys.executablePath: 'Percorso Eseguibile',
@@ -254,6 +258,7 @@ class AppStrings {
     'es': {
       AppKeys.home: 'Inicio',
       AppKeys.modules: 'Módulos',
+      AppKeys.skinCreator: 'Creador de Skin',
       AppKeys.settings: 'Ajustes',
       AppKeys.themeLight: 'Tema Claro',
       AppKeys.themeDark: 'Tema Oscuro',
@@ -331,6 +336,7 @@ class AppStrings {
     'fr': {
       AppKeys.home: 'Accueil',
       AppKeys.modules: 'Modules',
+      AppKeys.skinCreator: 'Createur de Skin',
       AppKeys.settings: 'Paramètres',
       AppKeys.themeLight: 'Thème Clair',
       AppKeys.themeDark: 'Thème Sombre',
@@ -408,6 +414,7 @@ class AppStrings {
     'de': {
       AppKeys.home: 'Startseite',
       AppKeys.modules: 'Module',
+      AppKeys.skinCreator: 'Skin-Generator',
       AppKeys.settings: 'Einstellungen',
       AppKeys.themeLight: 'Helles Design',
       AppKeys.themeDark: 'Dunkles Design',
@@ -484,6 +491,7 @@ class AppStrings {
     'zh': {
       AppKeys.home: '首页',
       AppKeys.modules: '模块',
+      AppKeys.skinCreator: '皮肤生成器',
       AppKeys.settings: '设置',
       AppKeys.themeLight: '浅色主题',
       AppKeys.themeDark: '深色主题',
@@ -555,6 +563,7 @@ class AppStrings {
     'ja': {
       AppKeys.home: 'ホーム',
       AppKeys.modules: 'モジュール',
+      AppKeys.skinCreator: 'スキンクリエーター',
       AppKeys.settings: '設定',
       AppKeys.themeLight: 'ライトテーマ',
       AppKeys.themeDark: 'ダークテーマ',
@@ -629,11 +638,11 @@ class AppStrings {
   };
 
   static String get(Locale locale, String key) {
-    // Check full language code (e.g., 'en', 'it')
-    if (_localizedValues.containsKey(locale.languageCode)) {
-      return _localizedValues[locale.languageCode]![key] ?? key;
+    final localized = _localizedValues[locale.languageCode];
+    if (localized != null && localized.containsKey(key)) {
+      return localized[key]!;
     }
-    // Default to English if not found
+    // Fallback to English when the selected locale misses a key.
     return _localizedValues['en']![key] ?? key;
   }
 }
