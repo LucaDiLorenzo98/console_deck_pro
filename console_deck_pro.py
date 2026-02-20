@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from threading import Thread, Event
 import uvicorn
 from serial.tools import list_ports
+from module_extensions import SpecialModuleManager
 
 # GPU Utils (Optional)
 try:
@@ -51,6 +52,11 @@ config_data = None
 config_updated_event = Event() # Used to signal the main thread to reload the config
 last_volume_target = None
 last_brightness_target = None
+special_module_manager = SpecialModuleManager(
+    APP_DIR,
+    event_log=ENABLE_EVENT_LOG,
+    action_log=ENABLE_ACTION_LOG,
+)
 
 @app.post("/reload")
 def reload_config_endpoint():
@@ -89,7 +95,8 @@ def load_config():
                 "port": None,
                 "baud_rate": 115200
             },
-            "mappings": {}
+            "mappings": {},
+            "special_modules": {},
         }
         try:
             with open(CONFIG_FILE, 'w') as f:
@@ -104,10 +111,10 @@ def load_config():
             content = f.read()
             if not content.strip():
                 print(f"Warning: {CONFIG_FILE} is empty. Using default values.")
-                return {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}}
+                return {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}, "special_modules": {}}
             parsed = json.loads(content)
             if not isinstance(parsed, dict):
-                return {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}}
+                return {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}, "special_modules": {}}
 
             serial_cfg = parsed.get("serial", {})
             if not isinstance(serial_cfg, dict):
@@ -120,6 +127,11 @@ def load_config():
             if not isinstance(mappings, dict):
                 mappings = {}
             parsed["mappings"] = mappings
+
+            special_modules = parsed.get("special_modules", {})
+            if not isinstance(special_modules, dict):
+                special_modules = {}
+            parsed["special_modules"] = special_modules
             return parsed
     except (json.JSONDecodeError, OSError, ValueError) as e:
         print(f"Error parsing {CONFIG_FILE}: {e}")
@@ -130,8 +142,16 @@ def ensure_config_loaded():
     if not isinstance(config_data, dict):
         config_data = load_config()
     if not isinstance(config_data, dict):
-        config_data = {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}}
+        config_data = {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}, "special_modules": {}}
     return config_data
+
+
+def sync_special_module_manager():
+    try:
+        if isinstance(config_data, dict):
+            special_module_manager.update_config(config_data)
+    except Exception as exc:
+        print(f"[WARNING] Could not sync special modules config: {exc}")
 
 
 def reload_config_if_requested():
@@ -143,6 +163,7 @@ def reload_config_if_requested():
     reloaded = load_config()
     if isinstance(reloaded, dict):
         config_data = reloaded
+        sync_special_module_manager()
     else:
         print("[WARNING] New config is invalid, keeping previous configuration.")
     config_updated_event.clear()
@@ -269,6 +290,7 @@ def main():
     if not config_data:
         print("Error: Could not load or create a configuration file. Exiting.")
         return
+    sync_special_module_manager()
 
     # --- Main Loop ---
     while True:
@@ -523,6 +545,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
 
                 prev_vals[0] = handle_analog(val1, prev_vals[0], f"{prefix}_1")
                 prev_vals[1] = handle_analog(val2, prev_vals[1], f"{prefix}_2")
+        elif module_id == 4:
+            special_module_manager.handle_media_payload(parts[12:])
+        elif module_id == 5:
+            special_module_manager.handle_piano_payload(parts[12:])
     
     except (ValueError, IndexError) as e:
         print(f"\n[WARNING] Could not parse serial line: '{line}'. Error: {e}")
@@ -612,6 +638,11 @@ if __name__ == "__main__":
         print("\n[INFO] Program terminated by user.")
     except Exception as e:
         print(f"\n[FATAL] An unhandled exception occurred in main: {e}")
+    finally:
+        try:
+            special_module_manager.close()
+        except Exception:
+            pass
         
     if os.name == "nt" and sys.stdin.isatty():
         input("\n[INFO] Press Enter to close this window...")
