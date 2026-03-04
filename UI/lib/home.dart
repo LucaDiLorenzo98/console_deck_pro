@@ -1,5 +1,4 @@
 import 'package:console_deck_ui/pages/skin_creator_page.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'l10n/app_translations.dart';
 import 'pages/home_page.dart';
@@ -8,6 +7,7 @@ import 'pages/settings_page.dart';
 import 'services/config_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
+import 'dart:convert';
 
 enum BackendStatus { connected, notConfigured, backendDown }
 
@@ -22,23 +22,22 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   BackendStatus _status = BackendStatus.backendDown;
   Timer? _statusTimer;
-
-  List<Widget> get _pages => [
-        HomePage(
-          status: _status,
-          onGoToSettings: () => _navigateTo(3), // 3 is the index for Settings
-        ),
-        const ModulesPage(),
-        const SkinCreatorPage(),
-        const SettingsPage()
-      ];
+  bool _isCheckingBackend = false;
+  late final List<Widget> _persistentPages;
 
   @override
   void initState() {
     super.initState();
+    _persistentPages = const [
+      ModulesPage(),
+      SkinCreatorPage(),
+      SettingsPage(),
+    ];
     _checkBackendStatus();
     _statusTimer = Timer.periodic(
-        const Duration(seconds: 5), (timer) => _checkBackendStatus());
+      const Duration(seconds: 3),
+      (timer) => _checkBackendStatus(),
+    );
   }
 
   @override
@@ -48,46 +47,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _navigateTo(int index) {
+    if (_selectedIndex == index) {
+      return;
+    }
     setState(() {
       _selectedIndex = index;
     });
   }
 
   Future<void> _checkBackendStatus() async {
-    BackendStatus newStatus;
+    if (_isCheckingBackend) {
+      return;
+    }
+    _isCheckingBackend = true;
+    BackendStatus newStatus = _status;
+
     try {
       final response = await http
-          .get(Uri.parse('http://127.0.0.1:8000/serial/ports'))
+          .get(Uri.parse('http://127.0.0.1:8000/status'))
           .timeout(const Duration(seconds: 2));
 
       if (response.statusCode == 200) {
-        final config = await ConfigService.loadConfig();
-        // Ensure we handle a missing 'serial' key gracefully
-        final serialConfig = config['serial'] as Map<String, dynamic>? ?? {};
-        final port = serialConfig['port'];
-
-        // DEBUG: Print info used to determine status
-        if (kDebugMode) {
-          print('[HomeScreen] Status check. Port from config: "$port"');
-        }
-
-        if (port != null) {
-          newStatus = BackendStatus.connected;
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final isConfigured = body['configured'] == true;
+        newStatus =
+            isConfigured ? BackendStatus.connected : BackendStatus.notConfigured;
+      } else if (response.statusCode == 404) {
+        // Backward compatibility with older backend versions.
+        final fallback = await http
+            .get(Uri.parse('http://127.0.0.1:8000/serial/ports'))
+            .timeout(const Duration(seconds: 2));
+        if (fallback.statusCode == 200) {
+          final config = await ConfigService.loadConfig();
+          final serialConfig = config['serial'] as Map<String, dynamic>? ?? {};
+          final port = serialConfig['port'];
+          newStatus = (port is String && port.isNotEmpty)
+              ? BackendStatus.connected
+              : BackendStatus.notConfigured;
         } else {
-          newStatus = BackendStatus.notConfigured;
+          newStatus = BackendStatus.backendDown;
         }
       } else {
         newStatus = BackendStatus.backendDown;
       }
     } catch (e) {
       newStatus = BackendStatus.backendDown;
+    } finally {
+      _isCheckingBackend = false;
     }
 
     if (mounted && newStatus != _status) {
-      // DEBUG: Print when the status actually changes
-      if (kDebugMode) {
-        print('[HomeScreen] Status changing from $_status to $newStatus');
-      }
       setState(() {
         _status = newStatus;
       });
@@ -132,7 +141,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const VerticalDivider(thickness: 1, width: 1),
           // Main Content Area
-          Expanded(child: _pages[_selectedIndex]),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: [
+                HomePage(
+                  status: _status,
+                  onGoToSettings: () => _navigateTo(3),
+                ),
+                ..._persistentPages,
+              ],
+            ),
+          ),
         ],
       ),
     );

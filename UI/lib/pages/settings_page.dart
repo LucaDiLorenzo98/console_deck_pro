@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
@@ -26,25 +25,18 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _loadSerialPorts();
-    _loadCurrentConfig();
+    _loadCurrentConfig().then((_) => _loadSerialPorts());
   }
 
   Future<void> _loadCurrentConfig() async {
     final config = await ConfigService.loadConfig();
     if (mounted) {
-      // Ensure the key exists before trying to access it
       final serialConfig = config['serial'] as Map<String, dynamic>? ?? {};
       final loadedPort = serialConfig['port'];
 
-      // DEBUG: Print the value being loaded
-      if (kDebugMode) {
-        print('[SettingsPage] Port value loaded from config: "$loadedPort" (Type: ${loadedPort.runtimeType})');
-      }
-
       setState(() {
-        // Explicitly handle null to avoid ambiguity
-        _selectedPort = loadedPort;
+        _selectedPort =
+            loadedPort is String && loadedPort.isNotEmpty ? loadedPort : null;
       });
     }
   }
@@ -56,15 +48,29 @@ class _SettingsPageState extends State<SettingsPage> {
           .get(Uri.parse('http://127.0.0.1:8000/serial/ports'))
           .timeout(const Duration(seconds: 2));
 
-      if (response.statusCode == 200 && mounted) {
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is! List) {
+          throw const FormatException('Invalid serial ports payload');
+        }
+        if (mounted) {
+          setState(() {
+            _portError = null; // Clear previous errors
+            _availablePorts = decoded;
+            // If the currently selected port is not in the list, clear it
+            if (_selectedPort != null &&
+                !_availablePorts!.any((p) => p['device'] == _selectedPort)) {
+              _selectedPort = null;
+            }
+          });
+        }
+      } else if (mounted) {
         setState(() {
-          _portError = null; // Clear previous errors
-          _availablePorts = jsonDecode(response.body);
-          // If the currently selected port is not in the list, clear it
-          if (_selectedPort != null &&
-              !_availablePorts!.any((p) => p['device'] == _selectedPort)) {
-            _selectedPort = null;
-          }
+          _portError = AppStrings.get(
+            localeNotifier.value,
+            AppKeys.backendConnectionError,
+          );
+          _availablePorts = [];
         });
       }
     } catch (e) {
@@ -73,6 +79,7 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _portError = AppStrings.get(
               localeNotifier.value, AppKeys.backendConnectionError);
+          _availablePorts = [];
         });
       }
     } finally {

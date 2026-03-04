@@ -7,12 +7,12 @@ import pyautogui
 import screen_brightness_control as sbc
 import os
 import sys
-import threading
 import psutil
 from fastapi import FastAPI
 from threading import Thread, Event
 import uvicorn
 from serial.tools import list_ports
+from module_extensions import SpecialModuleManager
 
 # GPU Utils (Optional)
 try:
@@ -22,12 +22,27 @@ except ImportError:
     HAS_GPUTIL = False
 
 # Debug Configuration
-ENABLE_TELEMETRY_LOG = True
+ENABLE_TELEMETRY_LOG = False
+ENABLE_ACTION_LOG = False
+ENABLE_EVENT_LOG = False
 
 # Configuration
 APP_NAME = "ConsoleDeckPro"
-APP_DIR = os.path.join(os.getenv('APPDATA'), APP_NAME)
+
+
+def get_app_dir():
+    app_data = os.getenv('APPDATA')
+    if app_data:
+        return os.path.join(app_data, APP_NAME)
+    # Linux/macOS fallback (useful for local development and CI)
+    return os.path.join(os.path.expanduser("~"), f".{APP_NAME.lower()}")
+
+
+APP_DIR = get_app_dir()
 CONFIG_FILE = os.path.join(APP_DIR, 'config.json')
+TELEMETRY_INTERVAL_SECONDS = 0.5
+HEAVY_SENSOR_INTERVAL_SECONDS = 2.0
+ANALOG_ABSOLUTE_DEADBAND = 2
 
 # Ensure the app directory exists
 os.makedirs(APP_DIR, exist_ok=True)
@@ -35,6 +50,13 @@ os.makedirs(APP_DIR, exist_ok=True)
 app = FastAPI()
 config_data = None
 config_updated_event = Event() # Used to signal the main thread to reload the config
+last_volume_target = None
+last_brightness_target = None
+special_module_manager = SpecialModuleManager(
+    APP_DIR,
+    event_log=ENABLE_EVENT_LOG,
+    action_log=ENABLE_ACTION_LOG,
+)
 
 @app.post("/reload")
 def reload_config_endpoint():
@@ -51,6 +73,16 @@ def get_serial_ports():
     ports = list_ports.comports()
     return [{"device": port.device, "description": port.description} for port in ports]
 
+
+@app.get("/status")
+def get_backend_status():
+    cfg = config_data if isinstance(config_data, dict) else load_config()
+    cfg = cfg if isinstance(cfg, dict) else {}
+    serial_cfg = cfg.get("serial", {})
+    port = serial_cfg.get("port") if isinstance(serial_cfg, dict) else None
+    return {"running": True, "configured": bool(port), "port": port}
+
+
 def run_server():
     # Uvicorn logging can be noisy, this can be changed to 'info' for more detail
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
@@ -63,7 +95,8 @@ def load_config():
                 "port": None,
                 "baud_rate": 115200
             },
-            "mappings": {}
+            "mappings": {},
+            "special_modules": {},
         }
         try:
             with open(CONFIG_FILE, 'w') as f:
@@ -78,75 +111,141 @@ def load_config():
             content = f.read()
             if not content.strip():
                 print(f"Warning: {CONFIG_FILE} is empty. Using default values.")
-                return {"serial": {"port": None}, "mappings": {}}
-            return json.loads(content)
-    except json.JSONDecodeError as e:
+                return {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}, "special_modules": {}}
+            parsed = json.loads(content)
+            if not isinstance(parsed, dict):
+                return {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}, "special_modules": {}}
+
+            serial_cfg = parsed.get("serial", {})
+            if not isinstance(serial_cfg, dict):
+                serial_cfg = {}
+            serial_cfg.setdefault("port", None)
+            serial_cfg.setdefault("baud_rate", 115200)
+            parsed["serial"] = serial_cfg
+
+            mappings = parsed.get("mappings", {})
+            if not isinstance(mappings, dict):
+                mappings = {}
+            parsed["mappings"] = mappings
+
+            special_modules = parsed.get("special_modules", {})
+            if not isinstance(special_modules, dict):
+                special_modules = {}
+            parsed["special_modules"] = special_modules
+            return parsed
+    except (json.JSONDecodeError, OSError, ValueError) as e:
         print(f"Error parsing {CONFIG_FILE}: {e}")
         return None
 
-def execute_action(action_def, absolute_value=None, multiplier=1):
+def ensure_config_loaded():
     global config_data
-    if not config_data:
+    if not isinstance(config_data, dict):
         config_data = load_config()
+    if not isinstance(config_data, dict):
+        config_data = {"serial": {"port": None, "baud_rate": 115200}, "mappings": {}, "special_modules": {}}
+    return config_data
 
-    if not action_def:
+
+def sync_special_module_manager():
+    try:
+        if isinstance(config_data, dict):
+            special_module_manager.update_config(config_data)
+    except Exception as exc:
+        print(f"[WARNING] Could not sync special modules config: {exc}")
+
+
+def reload_config_if_requested():
+    global config_data
+    if not config_updated_event.is_set():
         return
 
-    # Use the latest config for mappings
-    mappings = config_data.get('mappings', {})
-    
-    # The action_def key (e.g., 'btn_1') is needed to look up the fresh definition
-    action_key = None
-    for key, value in mappings.items():
-        if value == action_def:
-            action_key = key
-            break
-            
-    if action_key:
-        action_def = mappings.get(action_key, action_def)
+    print("\n[INFO] Reloading configuration in device loop...")
+    reloaded = load_config()
+    if isinstance(reloaded, dict):
+        config_data = reloaded
+        sync_special_module_manager()
+    else:
+        print("[WARNING] New config is invalid, keeping previous configuration.")
+    config_updated_event.clear()
 
+
+def execute_action(action_def=None, mapping_key=None, absolute_value=None, multiplier=1):
+    global last_volume_target, last_brightness_target
+    config = ensure_config_loaded()
+    mappings = config.get('mappings', {})
+
+    if mapping_key:
+        action_def = mappings.get(mapping_key)
+
+    if not isinstance(action_def, dict):
+        return
 
     action_type = action_def.get('action')
     value = action_def.get('value')
-    
+
+    if not action_type:
+        return
+
     if absolute_value is not None:
         value = absolute_value
 
-    print(f"  -> [ACTION] {action_type}: {value}")
+    if ENABLE_ACTION_LOG:
+        print(f"  -> [ACTION] {action_type}: {value}")
 
     try:
         if action_type == 'open_url':
-            print(f"     Opening URL: {value}")
+            if ENABLE_ACTION_LOG:
+                print(f"     Opening URL: {value}")
             webbrowser.open(value)
         elif action_type == 'open_app':
-            print(f"     Opening App: {value}")
+            if ENABLE_ACTION_LOG:
+                print(f"     Opening App: {value}")
             subprocess.Popen(value)
         elif action_type == 'hotkey':
-            print(f"     Sending Hotkey: {value}")
+            if ENABLE_ACTION_LOG:
+                print(f"     Sending Hotkey: {value}")
             if isinstance(value, list):
                 pyautogui.hotkey(*value)
             else:
                 pyautogui.press(value)
         elif action_type == 'type':
-            print(f"     Typing: {value}")
+            if ENABLE_ACTION_LOG:
+                print(f"     Typing: {value}")
             pyautogui.write(value)
         elif action_type == 'brightness':
-            print(f"     Changing Brightness: {value}")
+            if ENABLE_ACTION_LOG:
+                print(f"     Changing Brightness: {value}")
             try:
                 current = sbc.get_brightness()
                 if isinstance(current, list): current = current[0]
                 new_val = min(100, max(0, current + int(value)))
                 sbc.set_brightness(new_val)
-                print(f"     Brightness: {current} -> {new_val}")
+                if ENABLE_ACTION_LOG:
+                    print(f"     Brightness: {current} -> {new_val}")
             except Exception as e:
                 print(f"     [ERROR] Brightness control failed: {e}")
         elif action_type == 'set_volume':
-            # Absolute volume not easily supported via keys
-            print("     [WARNING] 'set_volume' (absolute) is not supported without pycaw. Using rough approximation or ignored.")
+            # Approximate absolute volume by tracking previous target and
+            # sending the required up/down key presses.
+            target = max(0, min(100, int(float(value))))
+            if last_volume_target is None:
+                last_volume_target = target
+                return
+            delta = target - last_volume_target
+            if abs(delta) < ANALOG_ABSOLUTE_DEADBAND:
+                return
+            key = 'volumeup' if delta > 0 else 'volumedown'
+            count = min(30, max(1, int(round(abs(delta) / 2.0))))
+            if ENABLE_ACTION_LOG:
+                print(f"     Set Volume (approx): {key} x {count} (target {target}%)")
+            for _ in range(count):
+                pyautogui.press(key)
+            last_volume_target = target
             
         elif action_type == 'toggle_mute':
             pyautogui.press('volumemute')
-            print("     Toggled Mute")
+            if ENABLE_ACTION_LOG:
+                print("     Toggled Mute")
 
         elif action_type == 'change_volume':
              # Simplified key-based control
@@ -155,15 +254,24 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
              
              key = 'volumeup' if float(value) > 0 else 'volumedown'
              count = int(round(abs(float(value)) * multiplier))
-             if count < 1: count = 1
+             if count < 1:
+                 count = 1
+             if count > 20:
+                 count = 20
              
-             print(f"     Change Volume: {key} x {count}")
+             if ENABLE_ACTION_LOG:
+                 print(f"     Change Volume: {key} x {count}")
              for _ in range(count):
                  pyautogui.press(key)
         elif action_type == 'set_brightness':
             try:
-                sbc.set_brightness(int(value))
-                print(f"     Set Brightness: {value}%")
+                target = max(0, min(100, int(float(value))))
+                if last_brightness_target is not None and abs(target - last_brightness_target) < ANALOG_ABSOLUTE_DEADBAND:
+                    return
+                sbc.set_brightness(target)
+                last_brightness_target = target
+                if ENABLE_ACTION_LOG:
+                    print(f"     Set Brightness: {target}%")
             except Exception as e:
                 print(f"     [ERROR] Set Brightness failed: {e}")
         else:
@@ -182,17 +290,13 @@ def main():
     if not config_data:
         print("Error: Could not load or create a configuration file. Exiting.")
         return
+    sync_special_module_manager()
 
     # --- Main Loop ---
     while True:
         try:
-            # CHECK FOR CONFIGURATION UPDATES (THE FIX)
-            # This is the most important part of the fix.
-            # We check if the UI has signaled a reload on every loop.
-            if config_updated_event.is_set():
-                print("\n[INFO] Reloading configuration in device loop...")
-                config_data = load_config()
-                config_updated_event.clear() # Reset the signal
+            reload_config_if_requested()
+            ensure_config_loaded()
 
             serial_config = config_data.get('serial', {})
             port = serial_config.get('port')
@@ -251,56 +355,40 @@ def run_device_loop(ser):
     prev_slider_vals = [None, None]
     prev_knob_vals = [None, None]
     
-    last_stats_time = 0
+    last_stats_time = 0.0
+    last_heavy_stats_time = 0.0
+    cached_gpu = -1
+    cached_temp_gpu = -1
+    cached_temp_cpu = -1
     last_net_recv, last_net_sent = get_net_bytes()
+    serial_buffer = ""
 
     while True: # This loop will run as long as the device is connected
         try:
-            # CHECK FOR CONFIGURATION UPDATES (THE FIX)
-            # This is the most important part of the fix.
-            # We check if the UI has signaled a reload on every loop.
-            if config_updated_event.is_set():
-                print("\n[INFO] Reloading configuration in device loop...")
-                config_data = load_config()
-                config_updated_event.clear() # Reset the signal
+            reload_config_if_requested()
+            ensure_config_loaded()
 
             current_time = time.time()
             
-            # --- SEND STATS TO ARDUINO (Every 0.5 seconds) ---
-            if current_time - last_stats_time > 0.5:
+            # --- SEND STATS TO ARDUINO ---
+            if current_time - last_stats_time > TELEMETRY_INTERVAL_SECONDS:
                 # 1. CPU
                 cpu = int(psutil.cpu_percent())
                 
-                # 2. GPU
-                gpu = -1
-                temp_gpu = -1
-                
-                # GPUtil
-                if HAS_GPUTIL:
-                    try:
-                        gpus = GPUtil.getGPUs()
-                        if gpus:
-                            gpu = int(gpus[0].load * 100)
-                            temp_gpu = int(gpus[0].temperature)
-                    except: pass
-                
-                # Nvidia-SMI Fallback
-                if gpu == -1:
-                    try:
-                            cmd = "nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits"
-                            output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
-                            parts_gpu = output.split(',')
-                            if len(parts_gpu) >= 2:
-                                gpu = int(parts_gpu[0].strip())
-                                temp_gpu = int(parts_gpu[1].strip())
-                    except: pass
+                # Heavy stats are sampled less frequently to avoid stutters.
+                if current_time - last_heavy_stats_time > HEAVY_SENSOR_INTERVAL_SECONDS:
+                    cached_gpu, cached_temp_gpu = get_gpu_stats()
+                    cached_temp_cpu = get_cpu_temp()
+                    last_heavy_stats_time = current_time
 
                 # 3. RAM
                 ram = int(psutil.virtual_memory().percent)
                 
                 # 4. CPU TEMP
-                temp_cpu = get_cpu_temp()
+                temp_cpu = cached_temp_cpu
                 if temp_cpu <= 0: temp_cpu = -1 # Final sanity check
+                gpu = cached_gpu
+                temp_gpu = cached_temp_gpu
 
                 # 5. NETWORK
                 down_speed = 0.0
@@ -333,10 +421,13 @@ def run_device_loop(ser):
 
             # Read all waiting data and process each line.
             if ser.in_waiting > 0:
-                print() # Newline to separate stats from events
                 data = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
-                lines = data.strip().split('\n')
+                serial_buffer += data
+                lines = serial_buffer.split('\n')
+                serial_buffer = lines.pop()
 
+                if lines:
+                    print() # Newline to separate stats from events
                 for line in lines:
                     line = line.strip()
                     if not line:
@@ -364,6 +455,7 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
     global config_data
 
     try:
+        mappings = config_data.get('mappings', {}) if isinstance(config_data, dict) else {}
         parts = line.split(';')
         if len(parts) < 12: 
             return
@@ -375,9 +467,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
         
         for i in range(9):
             if current_main_btns[i] == 1 and prev_main_btns[i] == 0:
-                print(f"[EVENT] Main Button {i+1} Pressed")
+                if ENABLE_EVENT_LOG:
+                    print(f"[EVENT] Main Button {i+1} Pressed")
                 btn_key = f"btn_{i+1}"
-                execute_action(config_data['mappings'].get(btn_key))
+                execute_action(mapping_key=btn_key)
         # Update state for the next line processing
         for i in range(9):
             prev_main_btns[i] = current_main_btns[i]
@@ -386,8 +479,9 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
         # for now, we assume the user doesn't press and rotate between serial messages.
         # This part might need more robust state management if issues arise.
         if current_enc_click == 1 and prev_enc_click[0] == 0:
-            print(f"[EVENT] Encoder Clicked (Short)")
-            execute_action(config_data['mappings'].get('enc_click'))
+            if ENABLE_EVENT_LOG:
+                print(f"[EVENT] Encoder Clicked (Short)")
+            execute_action(mapping_key='enc_click')
         prev_enc_click[0] = current_enc_click
 
 
@@ -397,11 +491,13 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 multiplier = abs(diff) / 2.0
                 
                 if diff > 0:
-                    print(f"[EVENT] Encoder Rotated CW (x{multiplier})")
-                    execute_action(config_data['mappings'].get('enc_cw'), multiplier=multiplier)
+                    if ENABLE_EVENT_LOG:
+                        print(f"[EVENT] Encoder Rotated CW (x{multiplier})")
+                    execute_action(mapping_key='enc_cw', multiplier=multiplier)
                 elif diff < 0:
-                    print(f"[EVENT] Encoder Rotated CCW (x{multiplier})")
-                    execute_action(config_data['mappings'].get('enc_ccw'), multiplier=multiplier)
+                    if ENABLE_EVENT_LOG:
+                        print(f"[EVENT] Encoder Rotated CCW (x{multiplier})")
+                    execute_action(mapping_key='enc_ccw', multiplier=multiplier)
         prev_enc_val[0] = current_enc_val
 
         if module_id == 1: # Buttons
@@ -409,9 +505,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 current_ext_btns = [int(x) for x in parts[12:18]]
                 for i in range(6):
                         if current_ext_btns[i] == 1 and prev_ext_btns[i] == 0:
-                            print(f"[EVENT] Ext Button {i+1} Pressed")
+                            if ENABLE_EVENT_LOG:
+                                print(f"[EVENT] Ext Button {i+1} Pressed")
                             btn_key = f"ext_btn_{i+1}"
-                            execute_action(config_data['mappings'].get(btn_key))
+                            execute_action(mapping_key=btn_key)
                 for i in range(6):
                     prev_ext_btns[i] = current_ext_btns[i]
                 
@@ -425,26 +522,33 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 prev_vals = prev_slider_vals if is_slider else prev_knob_vals
                 
                 def handle_analog(curr, prev, name):
-                    abs_mapping = config_data['mappings'].get(name)
+                    abs_mapping = mappings.get(name)
                     if abs_mapping:
-                        if curr != prev:
+                        if prev is None or abs(curr - prev) >= ANALOG_ABSOLUTE_DEADBAND:
                             execute_action(abs_mapping, absolute_value=curr)
                         return curr
 
-                    if prev is None: return curr
+                    if prev is None:
+                        return curr
                     diff = curr - prev
                     if abs(diff) > 2:
                         if diff > 0:
-                            print(f"[EVENT] {name} Moved UP/CW (Val: {curr})")
-                            execute_action(config_data['mappings'].get(f"{name}_up" if is_slider else f"{name}_cw"))
+                            if ENABLE_EVENT_LOG:
+                                print(f"[EVENT] {name} Moved UP/CW (Val: {curr})")
+                            execute_action(mapping_key=f"{name}_up" if is_slider else f"{name}_cw")
                         else:
-                            print(f"[EVENT] {name} Moved DOWN/CCW (Val: {curr})")
-                            execute_action(config_data['mappings'].get(f"{name}_down" if is_slider else f"{name}_ccw"))
+                            if ENABLE_EVENT_LOG:
+                                print(f"[EVENT] {name} Moved DOWN/CCW (Val: {curr})")
+                            execute_action(mapping_key=f"{name}_down" if is_slider else f"{name}_ccw")
                         return curr
                     return prev
 
                 prev_vals[0] = handle_analog(val1, prev_vals[0], f"{prefix}_1")
                 prev_vals[1] = handle_analog(val2, prev_vals[1], f"{prefix}_2")
+        elif module_id == 4:
+            special_module_manager.handle_media_payload(parts[12:])
+        elif module_id == 5:
+            special_module_manager.handle_piano_payload(parts[12:])
     
     except (ValueError, IndexError) as e:
         print(f"\n[WARNING] Could not parse serial line: '{line}'. Error: {e}")
@@ -463,6 +567,38 @@ def get_net_bytes():
     except:
         return 0, 0
 
+def get_gpu_stats():
+    gpu = -1
+    temp_gpu = -1
+
+    if HAS_GPUTIL:
+        try:
+            gpus = GPUtil.getGPUs()
+            if gpus:
+                return int(gpus[0].load * 100), int(gpus[0].temperature)
+        except Exception:
+            pass
+
+    try:
+        output = subprocess.check_output(
+            [
+                "nvidia-smi",
+                "--query-gpu=utilization.gpu,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            stderr=subprocess.DEVNULL,
+            timeout=1,
+        ).decode("utf-8").strip()
+        parts_gpu = output.split(',')
+        if len(parts_gpu) >= 2:
+            gpu = int(parts_gpu[0].strip())
+            temp_gpu = int(parts_gpu[1].strip())
+    except Exception:
+        pass
+
+    return gpu, temp_gpu
+
+
 def get_cpu_temp():
     # Try psutil
     t = -1
@@ -478,11 +614,15 @@ def get_cpu_temp():
     except:
         pass
     
-    # If invalid, Try WMI
-    if t <= 0:
+    # If invalid on Windows, try WMI.
+    if t <= 0 and os.name == "nt":
         try:
             ps_cmd = "Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace \"root/wmi\" | Select -ExpandProperty CurrentTemperature"
-            out = subprocess.check_output(["powershell", "-c", ps_cmd], creationflags=subprocess.CREATE_NO_WINDOW).decode().strip()
+            creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            out = subprocess.check_output(
+                ["powershell", "-c", ps_cmd],
+                creationflags=creation_flags,
+            ).decode().strip()
             if out and out.isdigit():
                 kelvin_x10 = int(out)
                 cels = (kelvin_x10 / 10.0) - 273.15
@@ -498,5 +638,11 @@ if __name__ == "__main__":
         print("\n[INFO] Program terminated by user.")
     except Exception as e:
         print(f"\n[FATAL] An unhandled exception occurred in main: {e}")
+    finally:
+        try:
+            special_module_manager.close()
+        except Exception:
+            pass
         
-    input("\n[INFO] Press Enter to close this window...")
+    if os.name == "nt" and sys.stdin.isatty():
+        input("\n[INFO] Press Enter to close this window...")
