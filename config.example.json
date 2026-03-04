@@ -76,5 +76,64 @@
                 "down"
             ]
         }
+    },
+    "special_modules": {
+        "media": {
+            "left_track": "C:/Music/track_left.mp3",
+            "right_track": "C:/Music/track_right.mp3",
+            "crossfader": 0.5
+        },
+        "piano": {
+            "keys": {
+                "piano_key_1": {
+                    "note": "C4",
+                    "file_path": ""
+                },
+                "piano_key_2": {
+                    "note": "D4",
+                    "file_path": ""
+                },
+                "piano_key_3": {
+                    "note": "E4",
+                    "file_path": ""
+                },
+                "piano_key_4": {
+                    "note": "F4",
+                    "file_path": ""
+                },
+                "piano_key_5": {
+                    "note": "G4",
+                    "file_path": ""
+                },
+                "piano_key_6": {
+                    "note": "A4",
+                    "file_path": ""
+                },
+                "piano_key_7": {
+                    "note": "B4",
+                    "file_path": ""
+                },
+                "piano_black_1": {
+                    "note": "C#4",
+                    "file_path": ""
+                },
+                "piano_black_2": {
+                    "note": "D#4",
+                    "file_path": ""
+                },
+                "piano_black_3": {
+                    "note": "F#4",
+                    "file_path": ""
+                },
+                "piano_black_4": {
+                    "note": "G#4",
+                    "file_path": ""
+                },
+                "piano_black_5": {
+                    "note": "A#4",
+                    "file_path": ""
+                }
+            }
+        }
     }
 }
