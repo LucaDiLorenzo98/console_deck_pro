@@ -187,8 +187,7 @@ void setup()
   pinMode(PIN_ENC_SW, INPUT_PULLUP);
   for (int i = 0; i < 3; i++)
   {
-    pinMode(rows[i], OUTPUT);
-    digitalWrite(rows[i], HIGH);
+    pinMode(rows[i], INPUT_PULLUP); // Simular to High Output, but with 10k Pull-Up to prevent short circuit
     pinMode(cols[i], INPUT_PULLUP);
   }
   loadSettings();
@@ -259,7 +258,8 @@ void loop()
 
   for (int r = 0; r < 3; r++)
   {
-      digitalWrite(rows[r], LOW);
+      pinMode(rows[r], OUTPUT);
+      digitalWrite(rows[r], LOW); // Only one row can be LOW, the other Rows are pulled Up to HIGH
       for (int c = 0; c < 3; c++)
       {
         if (digitalRead(cols[c]) == LOW)
@@ -268,7 +268,7 @@ void loop()
            matrixActive = true;
         }
       }
-      digitalWrite(rows[r], HIGH);
+      pinMode(rows[r], INPUT_PULLUP); // Row get pulled up to HIGH with 10k
   }
   if (pressedPhysicalId != -1) lastUserInputTime = now;
 
