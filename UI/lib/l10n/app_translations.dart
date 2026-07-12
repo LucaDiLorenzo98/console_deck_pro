@@ -51,6 +51,8 @@ class AppKeys {
   static const String configPromptButton = 'config.promptButton';
   static const String alertNotConfiguredText = 'alert.notConfigured.text';
   static const String alertNotConfiguredButton = 'alert.notConfigured.button';
+  static const String alertBackendDownTitle = 'alert.backendDown.title';
+  static const String alertBackendDownText = 'alert.backendDown.text';
 
   // Settings Links
   static const String visitWebsite = 'visit_website';
@@ -132,6 +134,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Serial port not configured. Please select a port to connect to the device.',
       AppKeys.alertNotConfiguredButton: 'Open Settings',
+      AppKeys.alertBackendDownTitle: 'Backend not running',
+      AppKeys.alertBackendDownText:
+          'The Console Deck PRO backend is not running. Start console_deck_pro.exe from the installation folder (usually C:\\Program Files\\Console Deck PRO) and keep its window open. See the README to start it automatically at login.',
       AppKeys.visitWebsite: 'Visit Website',
       AppKeys.visitMakerWorld: 'Visit MakerWorld',
       AppKeys.socialNetworks: 'Social Networks',
@@ -209,6 +214,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Porta seriale non configurata. Seleziona un porto per connetterti al dispositivo.',
       AppKeys.alertNotConfiguredButton: 'Apri Impostazioni',
+      AppKeys.alertBackendDownTitle: 'Backend non in esecuzione',
+      AppKeys.alertBackendDownText:
+          'Il backend di Console Deck PRO non è in esecuzione. Avvia console_deck_pro.exe dalla cartella di installazione (di solito C:\\Program Files\\Console Deck PRO) e tieni aperta la sua finestra. Consulta il README per l\'avvio automatico al login.',
       AppKeys.visitWebsite: 'Visita il Sito',
       AppKeys.visitMakerWorld: 'Visita MakerWorld',
       AppKeys.socialNetworks: 'Social Network',
@@ -287,6 +295,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Puerto serie no configurado. Seleccione un puerto para conectarse al dispositivo.',
       AppKeys.alertNotConfiguredButton: 'Abrir Configuración',
+      AppKeys.alertBackendDownTitle: 'Backend no está en ejecución',
+      AppKeys.alertBackendDownText:
+          'El backend de Console Deck PRO no está en ejecución. Inicia console_deck_pro.exe desde la carpeta de instalación (normalmente C:\\Program Files\\Console Deck PRO) y mantén su ventana abierta. Consulta el README para iniciarlo automáticamente al iniciar sesión.',
       AppKeys.visitWebsite: 'Visitar Sitio Web',
       AppKeys.visitMakerWorld: 'Visitar MakerWorld',
       AppKeys.socialNetworks: 'Redes Sociales',
@@ -366,6 +377,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Port série non configuré. Veuillez sélectionner un port pour vous connecter à l\'appareil.',
       AppKeys.alertNotConfiguredButton: 'Ouvrir les Paramètres',
+      AppKeys.alertBackendDownTitle: 'Backend non démarré',
+      AppKeys.alertBackendDownText:
+          'Le backend de Console Deck PRO n\'est pas en cours d\'exécution. Lancez console_deck_pro.exe depuis le dossier d\'installation (généralement C:\\Program Files\\Console Deck PRO) et laissez sa fenêtre ouverte. Consultez le README pour le démarrer automatiquement à la connexion.',
       AppKeys.visitWebsite: 'Visiter le Site Web',
       AppKeys.visitMakerWorld: 'Visiter MakerWorld',
       AppKeys.socialNetworks: 'Réseaux Sociaux',
@@ -445,6 +459,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Serieller Port nicht konfiguriert. Bitte wählen Sie einen Port aus, um eine Verbindung zum Gerät herzustellen.',
       AppKeys.alertNotConfiguredButton: 'Einstellungen öffnen',
+      AppKeys.alertBackendDownTitle: 'Backend läuft nicht',
+      AppKeys.alertBackendDownText:
+          'Das Console Deck PRO Backend läuft nicht. Starte console_deck_pro.exe aus dem Installationsordner (normalerweise C:\\Program Files\\Console Deck PRO) und lasse das Fenster geöffnet. Siehe README für den automatischen Start bei der Anmeldung.',
       AppKeys.visitWebsite: 'Webseite Besuchen',
       AppKeys.visitMakerWorld: 'MakerWorld Besuchen',
       AppKeys.socialNetworks: 'Soziale Netzwerke',
@@ -518,6 +535,9 @@ class AppStrings {
       AppKeys.configPromptButton: '前往设置',
       AppKeys.alertNotConfiguredText: '串行端口未配置。请选择一个端口以连接到设备。',
       AppKeys.alertNotConfiguredButton: '打开设置',
+      AppKeys.alertBackendDownTitle: '后端未运行',
+      AppKeys.alertBackendDownText:
+          'Console Deck PRO 后端未运行。请从安装文件夹（通常为 C:\\Program Files\\Console Deck PRO）启动 console_deck_pro.exe 并保持其窗口打开。如需登录时自动启动，请参阅 README。',
       AppKeys.visitWebsite: '访问网站',
       AppKeys.visitMakerWorld: '访问 MakerWorld',
       AppKeys.socialNetworks: '社交网络',
@@ -592,6 +612,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'シリアルポートが設定されていません。デバイスに接続するポートを選択してください。',
       AppKeys.alertNotConfiguredButton: '設定を開く',
+      AppKeys.alertBackendDownTitle: 'バックエンドが起動していません',
+      AppKeys.alertBackendDownText:
+          'Console Deck PRO のバックエンドが起動していません。インストールフォルダー（通常は C:\\Program Files\\Console Deck PRO）から console_deck_pro.exe を起動し、ウィンドウを開いたままにしてください。ログイン時の自動起動については README を参照してください。',
       AppKeys.visitWebsite: 'ウェブサイトへ',
       AppKeys.visitMakerWorld: 'MakerWorldへ',
       AppKeys.socialNetworks: 'ソーシャルネットワーク',

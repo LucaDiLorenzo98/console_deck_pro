@@ -60,10 +60,12 @@ The installer includes everything: the UI app and the compiled backend — no Py
 
 ### Step 4 — First launch
 
-1. In the installation folder (default: `C:\Program Files\Console Deck PRO`), double-click **`console_deck_pro.exe`** to start the backend. You can also add it to Windows startup via **Task Scheduler** or by placing a shortcut in `shell:startup` so it runs automatically at login.
+1. In the installation folder (default: `C:\Program Files\Console Deck PRO`), double-click **`console_deck_pro.exe`** to start the backend. A console window opens showing what the backend is doing — **keep it open** (you can minimize it); closing it stops the backend. Everything it prints is also saved to `%APPDATA%\ConsoleDeckPro\logs\backend.log`.
 2. Open **Console Deck PRO** from the Start menu (or desktop shortcut) to launch the UI.
 3. Go to **Settings** and select the Arduino serial port (e.g. `COM3`).
 4. The OLED display will show the connected state and begin displaying PC stats.
+
+> **Tip:** to avoid starting the backend by hand every time, see [Start the backend automatically at login](#start-the-backend-automatically-at-login-task-scheduler) below.
 
 ---
 
@@ -126,6 +128,70 @@ If you want to run the backend from source instead of using the compiled `.exe`:
 ```
 python console_deck_pro.py
 ```
+
+---
+
+## Start the backend automatically at login (Task Scheduler)
+
+The installer intentionally does **not** auto-start the backend. If you want it to start by itself when you log in to Windows, create a scheduled task once:
+
+> ⚠️ **Important:** choose **"Run only when user is logged on"**. Do NOT pick *"Run whether user is logged on or not"* — that runs the backend in a non-interactive session where hotkeys, volume and brightness control do not work.
+
+### Option A — Task Scheduler GUI
+
+1. Press `Win` and search for **Task Scheduler**, open it
+2. Click **Create Task…** (not "Basic Task") in the right panel
+3. **General** tab: name it `Console Deck PRO Backend`, select **Run only when user is logged on**
+4. **Triggers** tab: **New…** → Begin the task: **At log on** → Specific user (you) → OK
+5. **Actions** tab: **New…** → Action: **Start a program** →
+   - Program/script: `C:\Program Files\Console Deck PRO\console_deck_pro.exe`
+   - Add arguments: `--no-pause`
+6. **Conditions** tab: untick **"Start the task only if the computer is on AC power"** (important on laptops)
+7. **Settings** tab: untick **"Stop the task if it runs longer than 3 days"**
+8. Click **OK**. Done — the backend will start at your next login. To test it now: right-click the task → **Run**
+
+The `--no-pause` argument tells the backend not to wait for a key press on errors, so a failed scheduled run exits cleanly instead of hanging.
+
+### Option B — one command
+
+Open **PowerShell** and run:
+
+```
+schtasks /Create /TN "Console Deck PRO Backend" /SC ONLOGON /TR "\"C:\Program Files\Console Deck PRO\console_deck_pro.exe\" --no-pause"
+```
+
+Then apply steps 6–7 above from the Task Scheduler GUI (the command-line tool cannot set those options).
+
+### Running without a visible window (optional)
+
+By default the backend shows a console window (that's on purpose — you can see status and errors). If you prefer it fully hidden, set the task's **Action** to run PowerShell instead:
+
+- Program/script: `powershell.exe`
+- Add arguments:
+  ```
+  -WindowStyle Hidden -Command "Start-Process -WindowStyle Hidden 'C:\Program Files\Console Deck PRO\console_deck_pro.exe' -ArgumentList '--no-pause'"
+  ```
+
+> Note: when hidden, errors are only visible in the log file (see Troubleshooting below). The "Hidden" checkbox in Task Scheduler does **not** hide the console window — use the PowerShell wrapper above.
+
+A simpler alternative: put a shortcut to `console_deck_pro.exe` in the `shell:startup` folder (Win+R → `shell:startup`) and set the shortcut's **Run** option to **Minimized**.
+
+---
+
+## Troubleshooting
+
+**Where are the logs?**
+The backend writes everything to `%APPDATA%\ConsoleDeckPro\logs\backend.log` (paste that path in the Explorer address bar). **When reporting a bug, always attach this file** — it contains the app version, your OS, and the full error history.
+
+| Problem | Fix |
+|---|---|
+| The backend window closes immediately | It now stays open and shows the error — read it, and check the last lines of `backend.log` |
+| `Port 8000 is already in use` / `backend is already running` | Another backend window is already open (check the taskbar / system tray), or another program is using port 8000. Close it and retry |
+| The UI says **"Backend not running"** | Start `console_deck_pro.exe` (see Step 4). The UI does not start it for you |
+| `Failed to connect to serial port ... Access is denied` | The COM port is in use by another program — close Arduino IDE, its Serial Monitor, or any other serial app |
+| `Missing Python libraries` (running from source) | Run `pip install -r requirements.txt` |
+| Windows SmartScreen: *"Windows protected your PC"* | The exe is unsigned. Click **More info → Run anyway** |
+| Buttons/hotkeys do nothing while a specific app is focused | That app probably runs as administrator — keystrokes from a normal-privilege backend can't reach it. Run the backend as administrator too |
 
 ---
 

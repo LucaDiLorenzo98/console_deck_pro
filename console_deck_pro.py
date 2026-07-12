@@ -1,23 +1,158 @@
-import serial
+import sys
+import os
 import time
 import json
-from datetime import datetime
+import socket
+import logging
+import logging.handlers
 import webbrowser
 import subprocess
-import pyautogui
-import screen_brightness_control as sbc
-import os
 import threading
 import platform
-from pathlib import Path
 import queue
-import psutil
 import ctypes
-from fastapi import FastAPI
+from datetime import datetime
+from pathlib import Path
 from threading import Thread, Event
-import uvicorn
-from serial.tools import list_ports
-import requests as _requests
+
+APP_NAME = "ConsoleDeckPro"
+APP_VERSION = "2.1.0"
+
+def _default_app_dir() -> str:
+    """
+    Cross-platform, user-writable config directory.
+    Override with CONSOLE_DECK_PRO_DIR or CONSOLE_DECK_PRO_CONFIG.
+    """
+    override = os.getenv("CONSOLE_DECK_PRO_DIR")
+    if override:
+        return override
+
+    system = platform.system()
+    home = Path.home()
+
+    if system == "Windows":
+        appdata = os.getenv("APPDATA") or os.getenv("LOCALAPPDATA")
+        if appdata:
+            return str(Path(appdata) / APP_NAME)
+        return str(home / "AppData" / "Roaming" / APP_NAME)
+
+    if system == "Darwin":
+        return str(home / "Library" / "Application Support" / APP_NAME)
+
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    if xdg:
+        return str(Path(xdg) / APP_NAME)
+    return str(home / ".config" / APP_NAME)
+
+APP_DIR = _default_app_dir()
+CONFIG_FILE = os.getenv("CONSOLE_DECK_PRO_CONFIG") or os.path.join(APP_DIR, "config.json")
+LOG_DIR = os.path.join(APP_DIR, "logs")
+LOG_FILE = os.path.join(LOG_DIR, "backend.log")
+
+# Ensure the app directory exists
+os.makedirs(APP_DIR, exist_ok=True)
+
+log = logging.getLogger("consoledeck")
+
+def _setup_logging():
+    log.setLevel(logging.DEBUG)
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            LOG_FILE, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+        log.addHandler(file_handler)
+    except Exception:
+        pass  # File logging is best-effort; console output still works.
+    # sys.stdout is None in windowed (no-console) builds.
+    if sys.stdout is not None:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+        log.addHandler(console_handler)
+    if not log.handlers:
+        log.addHandler(logging.NullHandler())
+
+_setup_logging()
+
+def _log_unhandled_exception(exc_type, exc_value, exc_tb):
+    if issubclass(exc_type, KeyboardInterrupt):
+        return
+    log.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_tb))
+
+sys.excepthook = _log_unhandled_exception
+
+def _log_thread_exception(args):
+    # Thread exceptions bypass sys.excepthook (the API server runs in a thread).
+    if issubclass(args.exc_type, SystemExit):
+        return
+    thread_name = args.thread.name if args.thread else "?"
+    log.critical(
+        f"Unhandled exception in thread {thread_name}",
+        exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+    )
+
+threading.excepthook = _log_thread_exception
+
+def _pause_before_exit():
+    """
+    Keep the console window open so the user can read the error before it closes.
+    Skipped for scheduled/headless runs via --no-pause or CONSOLE_DECK_PRO_NO_PAUSE=1.
+    """
+    if os.getenv("CONSOLE_DECK_PRO_NO_PAUSE") in ("1", "true", "True"):
+        return
+    if "--no-pause" in sys.argv:
+        return
+    try:
+        if sys.stdin is not None and sys.stdin.isatty():
+            input("\nPress Enter to close this window...")
+    except Exception:
+        pass
+
+def _fatal_exit(message):
+    log.error(message)
+    log.error(f"Full log: {LOG_FILE}")
+    _pause_before_exit()
+    sys.exit(1)
+
+# Third-party imports: collect every missing package first so the user gets one
+# clear, actionable message instead of the window closing on the first ImportError.
+_MISSING_PACKAGES = []
+
+def _require(pip_name, module_name):
+    try:
+        __import__(module_name)
+    except ImportError:
+        _MISSING_PACKAGES.append(pip_name)
+
+_require("pyserial", "serial.tools.list_ports")
+_require("pyautogui", "pyautogui")
+_require("screen-brightness-control", "screen_brightness_control")
+_require("psutil", "psutil")
+_require("fastapi", "fastapi")
+_require("uvicorn", "uvicorn")
+_require("requests", "requests")
+
+if _MISSING_PACKAGES:
+    log.error(f"Missing Python libraries: {', '.join(_MISSING_PACKAGES)}")
+    _fatal_exit("Install them with:  pip install -r requirements.txt")
+
+try:
+    import serial
+    import pyautogui
+    import screen_brightness_control as sbc
+    import psutil
+    from fastapi import FastAPI
+    import uvicorn
+    from serial.tools import list_ports
+    import requests as _requests
+except Exception:
+    # Some libraries fail at import time with errors other than ImportError
+    # (e.g. pyautogui without a display). Log and keep the window open.
+    log.critical("A required library failed to load:", exc_info=True)
+    _fatal_exit("Could not start due to the error above. See the log for details.")
 
 try:
     import pygame
@@ -51,14 +186,14 @@ def _init_pygame_audio():
         _pygame_audio_ready = True
         return True
     except Exception as e:
-        print(f"[WARNING] pygame audio init failed: {e}")
+        log.warning(f"pygame audio init failed: {e}")
         return False
 
 def _play_audio_one_shot(file_path):
     """Play a one-shot audio file for button mappings."""
     if not file_path or not os.path.isfile(file_path):
         if ENABLE_ACTION_LOG:
-            print(f"[AUDIO] File not found: {file_path}")
+            log.debug(f"[AUDIO] File not found: {file_path}")
         return
 
     if _init_pygame_audio():
@@ -160,40 +295,6 @@ ENABLE_EVENT_LOG = os.getenv("CONSOLE_DECK_PRO_EVENT_LOG", "0") in ("1", "true",
 ENABLE_ACTION_LOG = os.getenv("CONSOLE_DECK_PRO_ACTION_LOG", "0") in ("1", "true", "True")
 ANALOG_ABSOLUTE_DEADBAND = 2
 
-APP_NAME = "ConsoleDeckPro"
-
-def _default_app_dir() -> str:
-    """
-    Cross-platform, user-writable config directory.
-    Override with CONSOLE_DECK_PRO_DIR or CONSOLE_DECK_PRO_CONFIG.
-    """
-    override = os.getenv("CONSOLE_DECK_PRO_DIR")
-    if override:
-        return override
-
-    system = platform.system()
-    home = Path.home()
-
-    if system == "Windows":
-        appdata = os.getenv("APPDATA") or os.getenv("LOCALAPPDATA")
-        if appdata:
-            return str(Path(appdata) / APP_NAME)
-        return str(home / "AppData" / "Roaming" / APP_NAME)
-
-    if system == "Darwin":
-        return str(home / "Library" / "Application Support" / APP_NAME)
-
-    xdg = os.getenv("XDG_CONFIG_HOME")
-    if xdg:
-        return str(Path(xdg) / APP_NAME)
-    return str(home / ".config" / APP_NAME)
-
-APP_DIR = _default_app_dir()
-CONFIG_FILE = os.getenv("CONSOLE_DECK_PRO_CONFIG") or os.path.join(APP_DIR, "config.json")
-
-# Ensure the app directory exists
-os.makedirs(APP_DIR, exist_ok=True)
-
 app = FastAPI()
 config_data = None
 config_updated_event = Event() # Used to signal the main thread to reload the config
@@ -208,7 +309,7 @@ def reload_config_endpoint():
     This simply sets an event to notify the main loop to re-read the config file.
     """
     config_updated_event.set()
-    print("Configuration reload requested via API")
+    log.info("Configuration reload requested via API")
     return {"message": "Config reload signaled"}
 
 @app.get("/serial/ports")
@@ -228,7 +329,41 @@ def get_backend_status():
 
 def run_server():
     # Uvicorn logging can be noisy, this can be changed to 'info' for more detail
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+    except Exception:
+        # Keep the serial loop alive: macros still work without the API,
+        # but the UI will not be able to connect.
+        log.error("API server failed to start. The UI will not be able to connect.", exc_info=True)
+        log.error(f"See log at {LOG_FILE}")
+
+
+def _check_api_port_available():
+    """Fail fast with a clear message if port 8000 is taken (second instance or another app)."""
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            probe.bind(("127.0.0.1", 8000))
+        finally:
+            probe.close()
+        return
+    except OSError:
+        pass
+
+    try:
+        resp = _requests.get("http://127.0.0.1:8000/status", timeout=1)
+        if resp.status_code == 200 and resp.json().get("running"):
+            _fatal_exit(
+                "The Console Deck PRO backend is already running. "
+                "Close the other backend window first, or just use the one that is running."
+            )
+    except (_requests.exceptions.RequestException, ValueError):
+        pass
+
+    _fatal_exit(
+        "Port 8000 is already in use by another program. "
+        "Close the program using it, then start the backend again."
+    )
 
 def load_config():
     default_config = {
@@ -244,28 +379,28 @@ def load_config():
     }
 
     if not os.path.exists(CONFIG_FILE):
-        print(f"Info: {CONFIG_FILE} not found. Creating a new one with default values.")
+        log.info(f"{CONFIG_FILE} not found. Creating a new one with default values.")
         try:
             with open(CONFIG_FILE, 'w') as f:
                 json.dump(default_config, f, indent=4)
             return default_config
         except Exception as e:
-            print(f"Error: Could not create default config file: {e}")
+            log.error(f"Could not create default config file: {e}")
             return None
 
     try:
         with open(CONFIG_FILE, 'r') as f:
             content = f.read()
             if not content.strip():
-                print(f"Warning: {CONFIG_FILE} is empty. Using default values.")
+                log.warning(f"{CONFIG_FILE} is empty. Using default values.")
                 return default_config
             return json.loads(content)
     except json.JSONDecodeError as e:
-        print(f"Error parsing {CONFIG_FILE}: {e}. Backing up and resetting to defaults.")
+        log.error(f"Error parsing {CONFIG_FILE}: {e}. Backing up and resetting to defaults.")
         try:
             backup_path = f"{CONFIG_FILE}.bad.{int(time.time())}"
             os.replace(CONFIG_FILE, backup_path)
-            print(f"Info: bad config moved to {backup_path}")
+            log.info(f"Bad config moved to {backup_path}")
         except Exception:
             pass
         try:
@@ -275,7 +410,7 @@ def load_config():
         except Exception:
             return None
     except Exception as e:
-        print(f"Error reading {CONFIG_FILE}: {e}")
+        log.error(f"Error reading {CONFIG_FILE}: {e}")
         return None
 
 def ensure_config_loaded():
@@ -302,41 +437,41 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
         value = absolute_value
 
     if ENABLE_ACTION_LOG:
-        print(f"  -> [ACTION] {action_type}: {value}")
+        log.debug(f"[ACTION] {action_type}: {value}")
 
     try:
         if action_type == 'open_url':
             if ENABLE_ACTION_LOG:
-                print(f"     Opening URL: {value}")
+                log.debug(f"Opening URL: {value}")
             webbrowser.open(value)
         elif action_type == 'open_app':
             if ENABLE_ACTION_LOG:
-                print(f"     Opening App: {value}")
+                log.debug(f"Opening App: {value}")
             subprocess.Popen(value)
         elif action_type == 'hotkey':
             if ENABLE_ACTION_LOG:
-                print(f"     Sending Hotkey: {value}")
+                log.debug(f"Sending Hotkey: {value}")
             if isinstance(value, list):
                 pyautogui.hotkey(*value)
             else:
                 pyautogui.press(value)
         elif action_type == 'type':
             if ENABLE_ACTION_LOG:
-                print(f"     Typing: {value}")
+                log.debug(f"Typing: {value}")
             pyautogui.write(value)
         elif action_type == 'brightness':
             # Relative: current + value (encoder/button)
             if ENABLE_ACTION_LOG:
-                print(f"     Changing Brightness (delta): {value}")
+                log.debug(f"Changing Brightness (delta): {value}")
             try:
                 current = sbc.get_brightness()
                 if isinstance(current, list): current = current[0]
                 new_val = min(100, max(0, current + int(value)))
                 sbc.set_brightness(new_val)
                 if ENABLE_ACTION_LOG:
-                    print(f"     Brightness: {current} -> {new_val}")
+                    log.debug(f"Brightness: {current} -> {new_val}")
             except Exception as e:
-                print(f"     [ERROR] Brightness control failed: {e}")
+                log.error(f"Brightness control failed: {e}")
         elif action_type == 'set_volume':
             target = max(0, min(100, int(float(value))))
             if last_volume_target is None:
@@ -348,20 +483,20 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
             key = 'volumeup' if delta > 0 else 'volumedown'
             count = min(30, max(1, int(round(abs(delta) / 2.0))))
             if ENABLE_ACTION_LOG:
-                print(f"     Set Volume (approx): {key} x {count} (target {target}%)")
+                log.debug(f"Set Volume (approx): {key} x {count} (target {target}%)")
             _press_system_volume_key(key, count)
             last_volume_target = target
         elif action_type == 'toggle_mute':
             _press_system_volume_key('volumemute', 1)
             if ENABLE_ACTION_LOG:
-                print("     Toggled Mute")
+                log.debug("Toggled Mute")
         elif action_type == 'change_volume':
             key = 'volumeup' if float(value) > 0 else 'volumedown'
             count = int(round(abs(float(value)) * multiplier))
             if count < 1: count = 1
             if count > 25: count = 25
             if ENABLE_ACTION_LOG:
-                print(f"     Change Volume: {key} x {count}")
+                log.debug(f"Change Volume: {key} x {count}")
             _press_system_volume_key(key, count)
         elif action_type == 'set_brightness':
             # Relative everywhere: from slider use delta of position; from config use value as delta
@@ -385,15 +520,15 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
                     new_val = min(100, max(0, current + delta_pct))
                 sbc.set_brightness(new_val)
                 if ENABLE_ACTION_LOG:
-                    print(f"     Brightness: {current} -> {new_val} (relative)")
+                    log.debug(f"Brightness: {current} -> {new_val} (relative)")
             except Exception as e:
-                print(f"     [ERROR] Set Brightness failed: {e}")
+                log.error(f"Set Brightness failed: {e}")
         elif action_type == 'play_audio':
             file_path = str(value or "")
             if file_path:
                 _play_audio_one_shot(file_path)
                 if ENABLE_ACTION_LOG:
-                    print(f"     Play Audio: {file_path}")
+                    log.debug(f"Play Audio: {file_path}")
         elif action_type == 'home_assistant':
             ha_cfg = config_data.get('home_assistant', {}) if isinstance(config_data, dict) else {}
             host = str(ha_cfg.get('host', '')).rstrip('/')
@@ -402,7 +537,7 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
             entity_id = str(action_def.get('entity_id', ''))
             missing = [k for k, v in [('host', host), ('token', token), ('service', service), ('entity_id', entity_id)] if not v]
             if missing:
-                print(f"     [WARNING] Home Assistant: missing {', '.join(missing)}. Configure HA in Settings.")
+                log.warning(f"Home Assistant: missing {', '.join(missing)}. Configure HA in Settings.")
             else:
                 try:
                     domain = entity_id.split('.')[0] if '.' in entity_id else entity_id
@@ -411,25 +546,25 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
                     resp = _requests.post(url, headers=headers, json={"entity_id": entity_id}, timeout=5)
                     if resp.status_code in (200, 201):
                         if ENABLE_ACTION_LOG:
-                            print(f"     HA {service} on {entity_id} → OK ({resp.status_code})")
+                            log.debug(f"HA {service} on {entity_id} → OK ({resp.status_code})")
                     elif resp.status_code == 401:
-                        print(f"     [ERROR] HA: Invalid or expired token. Update the token in Settings.")
+                        log.error("HA: Invalid or expired token. Update the token in Settings.")
                     elif resp.status_code == 404:
-                        print(f"     [ERROR] HA: Service '{domain}/{service}' or entity '{entity_id}' not found.")
+                        log.error(f"HA: Service '{domain}/{service}' or entity '{entity_id}' not found.")
                     elif resp.status_code == 400:
-                        print(f"     [ERROR] HA: Bad request for '{entity_id}'/'{service}': {resp.text[:200]}")
+                        log.error(f"HA: Bad request for '{entity_id}'/'{service}': {resp.text[:200]}")
                     else:
-                        print(f"     [ERROR] HA: HTTP {resp.status_code} for '{entity_id}': {resp.text[:200]}")
+                        log.error(f"HA: HTTP {resp.status_code} for '{entity_id}': {resp.text[:200]}")
                 except _requests.exceptions.ConnectionError:
-                    print(f"     [ERROR] HA: Cannot connect to '{host}'. Check the URL in Settings.")
+                    log.error(f"HA: Cannot connect to '{host}'. Check the URL in Settings.")
                 except _requests.exceptions.Timeout:
-                    print(f"     [ERROR] HA: Request to '{host}' timed out. HA may be unreachable.")
+                    log.error(f"HA: Request to '{host}' timed out. HA may be unreachable.")
                 except _requests.exceptions.RequestException as e:
-                    print(f"     [ERROR] HA: Request failed: {e}")
+                    log.error(f"HA: Request failed: {e}")
         else:
-            print(f"     [WARNING] Unknown action type: {action_type}")
+            log.warning(f"Unknown action type: {action_type}")
     except Exception as e:
-        print(f"     [ERROR] Failed to execute action: {e}")
+        log.error(f"Failed to execute action '{action_type}': {e}", exc_info=True)
 
 
 def reload_config_if_requested():
@@ -520,7 +655,7 @@ class ActionExecutor:
             try:
                 execute_action(action_def, absolute_value=absolute_value, multiplier=multiplier)
             except Exception as e:
-                print(f"     [ERROR] Action worker failed: {e}")
+                log.error(f"Action worker failed: {e}", exc_info=True)
             finally:
                 self._q.task_done()
 
@@ -607,15 +742,19 @@ class TelemetrySampler:
 
 def main():
     global config_data
-    server_thread = Thread(target=run_server)
+    _check_api_port_available()
+    server_thread = Thread(target=run_server, name="api-server")
     server_thread.daemon = True
     server_thread.start()
-    
+
     # Load the initial configuration
     config_data = load_config()
     if not config_data:
-        print("Error: Could not load or create a configuration file. Exiting.")
-        return
+        _fatal_exit("Could not load or create a configuration file.")
+
+    # State flags so the wait/retry loops log once per state change instead of spamming.
+    waiting_for_port_logged = False
+    connect_fail_logged = False
 
     # --- Main Loop ---
     while True:
@@ -625,43 +764,52 @@ def main():
 
             serial_config = config_data.get('serial', {})
             port = serial_config.get('port')
-            baud_rate = serial_config.get('baud_rate', 9600)
+            baud_rate = serial_config.get('baud_rate') or 115200
 
             # STATE 1: Port is not configured. Wait for the signal or a timeout.
             if not port:
-                print("\r[INFO] Serial port not configured. Waiting for selection in the UI...", end="", flush=True)
+                if not waiting_for_port_logged:
+                    log.info("Serial port not configured. Waiting for selection in the UI...")
+                    waiting_for_port_logged = True
                 # Wait for the reload signal, with a 2-second timeout to keep the loop spinning
                 config_updated_event.wait(timeout=2)
                 continue
+            waiting_for_port_logged = False
 
             # STATE 2: Port is configured. Attempt connection and run device logic.
-            print(f"\n[INFO] Port configured. Attempting to connect to {port} at {baud_rate}...")
+            if not connect_fail_logged:
+                log.info(f"Port configured. Attempting to connect to {port} at {baud_rate}...")
             try:
                 ser = serial.Serial(port, baud_rate, timeout=1)
                 time.sleep(2) # Wait for connection to settle
-                print("[SUCCESS] Connected to device!")
+                log.info("Connected to device!")
+                connect_fail_logged = False
             except serial.SerialException as e:
-                print(f"[ERROR] Failed to connect to serial port '{port}': {e}")
-                if "PermissionError" in str(e) or "Access is denied" in str(e):
-                    print("[TIP] The port might be in use by another application.")
-                print("[INFO] Will retry in 10 seconds. You can change the port in the UI.")
+                if connect_fail_logged:
+                    log.debug(f"Still failing to connect to serial port '{port}': {e}")
+                else:
+                    log.error(f"Failed to connect to serial port '{port}': {e}")
+                    if "PermissionError" in str(e) or "Access is denied" in str(e):
+                        log.info("Tip: the port might be in use by another application (e.g. Arduino IDE).")
+                    log.info("Will retry every 10 seconds. You can change the port in the UI.")
+                    connect_fail_logged = True
                 time.sleep(10)
                 config_data = load_config() # Reload config before retrying
                 continue
 
             # --- This is the main device loop ---
             run_device_loop(ser)
-            
+
             # If the loop exits (e.g., device disconnect), inform the user and wait before retrying.
-            print("\n[INFO] Device disconnected. Waiting for reconnection or configuration change...")
+            log.info("Device disconnected. Waiting for reconnection or configuration change...")
             time.sleep(5)
-            
+
         except KeyboardInterrupt:
-            print("\nExiting...")
+            log.info("Exiting...")
             break
         except Exception as e:
-            print(f"\n[FATAL] An unexpected error occurred in the main loop: {e}")
-            print("[INFO] Restarting main loop in 10 seconds...")
+            log.error(f"An unexpected error occurred in the main loop: {e}", exc_info=True)
+            log.info("Restarting main loop in 10 seconds...")
             time.sleep(10)
 
 
@@ -692,7 +840,7 @@ def run_device_loop(ser):
         while True:  # This loop will run as long as the device is connected
             try:
                 if config_updated_event.is_set():
-                    print("\n[INFO] Reloading configuration in device loop...")
+                    log.info("Reloading configuration in device loop...")
                     config_data = load_config()
                     config_updated_event.clear()
 
@@ -757,23 +905,20 @@ def run_device_loop(ser):
                         gpu_str = f"{gpu}%" if gpu != -1 else "N/A"
                         fq_str = f"{cpu_freq_mhz/1000.0:.1f}GHz" if cpu_freq_mhz > 0 else "N/A"
                         tg_str = f"{gpu_temp_c}C" if gpu_temp_c != -1 else "N/A"
-                        print(
-                            f"\r[STATS] CPU:{cpu}% RAM:{ram}% GPU:{gpu_str} | F:{fq_str} G:{tg_str}",
-                            end="",
-                        )
+                        log.debug(f"[STATS] CPU:{cpu}% RAM:{ram}% GPU:{gpu_str} | F:{fq_str} G:{tg_str}")
 
                     # Keep cadence stable even if we fell behind.
                     next_stats_time = now + stats_interval_s
 
             except (serial.SerialException, OSError) as e:
-                print(f"\n[ERROR] Device disconnected or serial error: {e}")
+                log.warning(f"Device disconnected or serial error: {e}")
                 try:
                     ser.close()
                 except Exception:
                     pass
                 return
             except Exception as e:
-                print(f"\n[ERROR] An error occurred in device loop: {e}")
+                log.error(f"An error occurred in device loop: {e}", exc_info=True)
                 time.sleep(0.2)
     finally:
         telemetry.stop()
@@ -824,7 +969,7 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
         for i in range(9):
             if current_main_btns[i] == 1 and prev_main_btns[i] == 0:
                 if ENABLE_EVENT_LOG:
-                    print(f"[EVENT] Main Button {i+1} Pressed")
+                    log.debug(f"[EVENT] Main Button {i+1} Pressed")
                 btn_key = f"btn_{i+1}"
                 action_executor.submit(get_mapping(btn_key))
         # Update state for the next line processing
@@ -836,7 +981,7 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
         # - rotate CW/CCW => change volume
         if current_enc_click == 1 and prev_enc_click[0] == 0:
             if ENABLE_EVENT_LOG:
-                print(f"[EVENT] Encoder Clicked (Short)")
+                log.debug("[EVENT] Encoder Clicked (Short)")
             execute_action({"action": "toggle_mute", "value": None})
         prev_enc_click[0] = current_enc_click
 
@@ -846,11 +991,11 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 multiplier = abs(diff) / 2.0
                 if diff > 0:
                     if ENABLE_EVENT_LOG:
-                        print(f"[EVENT] Encoder Rotated CW (x{multiplier})")
+                        log.debug(f"[EVENT] Encoder Rotated CW (x{multiplier})")
                     execute_action({"action": "change_volume", "value": 1}, multiplier=multiplier)
                 elif diff < 0:
                     if ENABLE_EVENT_LOG:
-                        print(f"[EVENT] Encoder Rotated CCW (x{multiplier})")
+                        log.debug(f"[EVENT] Encoder Rotated CCW (x{multiplier})")
                     execute_action({"action": "change_volume", "value": -1}, multiplier=multiplier)
         prev_enc_val[0] = current_enc_val
 
@@ -860,7 +1005,7 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 for i in range(6):
                         if current_ext_btns[i] == 1 and prev_ext_btns[i] == 0:
                             if ENABLE_EVENT_LOG:
-                                print(f"[EVENT] Ext Button {i+1} Pressed")
+                                log.debug(f"[EVENT] Ext Button {i+1} Pressed")
                             btn_key = f"ext_btn_{i+1}"
                             action_executor.submit(get_mapping(btn_key))
                 for i in range(6):
@@ -887,10 +1032,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                     diff = curr - prev
                     if abs(diff) > 2:
                         if diff > 0:
-                            print(f"[EVENT] {name} Moved UP/CW (Val: {curr})")
+                            log.debug(f"[EVENT] {name} Moved UP/CW (Val: {curr})")
                             action_executor.submit(get_mapping(f"{name}_up" if is_slider else f"{name}_cw"))
                         else:
-                            print(f"[EVENT] {name} Moved DOWN/CCW (Val: {curr})")
+                            log.debug(f"[EVENT] {name} Moved DOWN/CCW (Val: {curr})")
                             action_executor.submit(get_mapping(f"{name}_down" if is_slider else f"{name}_ccw"))
                         return curr
                     return prev
@@ -899,7 +1044,7 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 prev_vals[1] = handle_analog(val2, prev_vals[1], f"{prefix}_2")
     
     except (ValueError, IndexError) as e:
-        print(f"\n[WARNING] Could not parse serial line: '{line}'. Error: {e}")
+        log.warning(f"Could not parse serial line: '{line}'. Error: {e}")
 
 _DATE_FORMATS = {
     'en': '%d/%m',
@@ -923,9 +1068,9 @@ def _send_boot_message(ser):
         boot_msg = f"BOOT:{now_dt.strftime('%H:%M:%S')},{now_dt.strftime(date_fmt)}\n"
         ser.write(boot_msg.encode("utf-8"))
         if ENABLE_ACTION_LOG:
-            print(f"[INFO] Boot message sent: {boot_msg.strip()}")
+            log.debug(f"Boot message sent: {boot_msg.strip()}")
     except Exception as e:
-        print(f"[WARNING] Could not send boot message: {e}")
+        log.warning(f"Could not send boot message: {e}")
 
 def get_cpu_freq_mhz():
     """Best-effort CPU frequency (MHz). Returns -1 if unavailable."""
@@ -940,14 +1085,16 @@ def get_cpu_freq_mhz():
     return -1
 
 if __name__ == "__main__":
+    build_kind = "frozen exe" if getattr(sys, "frozen", False) else "running from source"
+    log.info(f"Console Deck PRO backend v{APP_VERSION} ({build_kind})")
+    log.info(f"Python {sys.version.split()[0]} on {platform.platform()}")
+    log.info(f"Config file: {CONFIG_FILE}")
+    log.info(f"Log file: {LOG_FILE}")
     try:
         main()
     except KeyboardInterrupt:
-        print("\n[INFO] Program terminated by user.")
-    except Exception as e:
-        print(f"\n[FATAL] An unhandled exception occurred in main: {e}")
-    try:
-        if os.isatty(0):
-            input("\n[INFO] Press Enter to close this window...")
+        log.info("Program terminated by user.")
     except Exception:
-        pass
+        log.critical("An unhandled exception occurred in main:", exc_info=True)
+        _pause_before_exit()
+        sys.exit(1)

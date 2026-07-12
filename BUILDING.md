@@ -14,10 +14,12 @@
 From the project root:
 
 ```bash
-py -m PyInstaller --noconfirm --onefile --noconsole --name console_deck_pro console_deck_pro.py
+py -m PyInstaller --noconfirm console_deck_pro.spec
 ```
 
 Output: `dist\console_deck_pro.exe`
+
+> Always build from the `.spec` file — it includes the uvicorn hidden imports the exe needs at runtime and builds a **console** app on purpose, so users can see status and error messages (everything is also written to `%APPDATA%\ConsoleDeckPro\logs\backend.log`).
 
 ---
 
