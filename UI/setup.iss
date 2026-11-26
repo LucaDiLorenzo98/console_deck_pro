@@ -60,6 +60,8 @@ Type: files; Name: "{app}\console_deck_pro.exe"
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ConsoleDeckProBackend"; ValueData: """{app}\console_deck_pro.exe"" --background"; Flags: uninsdeletevalue; Tasks: autostartbackend
 ; Re-installing with the option unticked removes a previous registration.
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "ConsoleDeckProBackend"; Flags: deletevalue; Tasks: not autostartbackend
+; Leftover of the removed "Start with Windows" toggle (v2.0.0), which started the UI at sign-in.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "ConsoleDeckPro"; Flags: deletevalue
 
 [Icons]
 Name: "{autoprograms}\Console Deck PRO"; Filename: "{app}\console_deck_ui.exe"

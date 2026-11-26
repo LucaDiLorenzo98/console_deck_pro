@@ -15,6 +15,13 @@ from datetime import datetime
 from pathlib import Path
 from threading import Thread, Event
 
+if __name__ == "__main__":
+    # Must run before anything else in a frozen exe: if any library ever starts a
+    # multiprocessing worker, the worker is this same exe launched again, and
+    # without this call it would run the whole backend again (and so on forever).
+    import multiprocessing
+    multiprocessing.freeze_support()
+
 APP_NAME = "ConsoleDeckPro"
 APP_VERSION = "2.2.0"
 
@@ -125,6 +132,52 @@ def _log_unhandled_exception(exc_type, exc_value, exc_tb):
     log.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_tb))
 
 sys.excepthook = _log_unhandled_exception
+
+_instance_mutex = None  # Keeps the handle alive for the lifetime of the process.
+
+def _another_instance_is_running() -> bool:
+    """
+    Machine-wide single-instance lock (Windows named mutex).
+
+    Windows creates the mutex atomically, so no matter how many copies are
+    started, or how quickly, exactly one gets it and all the others exit before
+    touching the serial port or the API port. Windows releases it automatically
+    when the owning process ends, even after a crash. On other systems the API
+    port check in main() does the same job.
+    """
+    global _instance_mutex
+    if sys.platform != "win32":
+        return False
+    ERROR_ACCESS_DENIED = 5      # Mutex owned by a backend of another Windows user.
+    ERROR_ALREADY_EXISTS = 183
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW.restype = ctypes.c_void_p
+        kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+        handle = kernel32.CreateMutexW(None, 0, "Global\\ConsoleDeckProBackend")
+        error = ctypes.get_last_error()
+        if error in (ERROR_ALREADY_EXISTS, ERROR_ACCESS_DENIED):
+            return True
+        _instance_mutex = handle
+    except Exception:
+        pass  # Never block startup because of the lock itself.
+    return False
+
+if __name__ == "__main__" and _another_instance_is_running():
+    if BACKGROUND_MODE:
+        log.info("Another backend instance is already running. Exiting.")
+        sys.exit(0)
+    log.error(
+        "The Console Deck PRO backend is already running in the background. "
+        "To restart it, end console_deck_pro.exe in Task Manager first."
+    )
+    log.error(f"Full log: {LOG_FILE}")
+    try:
+        if HAS_CONSOLE and sys.stdin is not None and sys.stdin.isatty() and "--no-pause" not in sys.argv:
+            input("\nPress Enter to close this window...")
+    except Exception:
+        pass
+    sys.exit(1)
 
 def _log_thread_exception(args):
     # Thread exceptions bypass sys.excepthook (the API server runs in a thread).
