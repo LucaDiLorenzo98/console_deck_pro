@@ -495,12 +495,31 @@ def load_config():
             return None
 
     try:
-        with open(CONFIG_FILE, 'r') as f:
-            content = f.read()
+        # The UI rewrites this file in place while we may be reading it, so an
+        # empty or half-written file is usually just bad timing: look again a
+        # few times before deciding the file is really broken.
+        content = ""
+        parse_error = None
+        for attempt in range(4):
+            if attempt:
+                time.sleep(0.25)
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                content = f.read()
             if not content.strip():
-                log.warning(f"{CONFIG_FILE} is empty. Using default values.")
-                return default_config
-            return json.loads(content)
+                continue
+            try:
+                loaded = json.loads(content)
+            except json.JSONDecodeError as e:
+                parse_error = e
+                continue
+            if isinstance(loaded, dict):
+                return loaded
+            log.error(f"{CONFIG_FILE} does not contain a settings object. Ignoring it.")
+            return default_config
+        if not content.strip():
+            log.warning(f"{CONFIG_FILE} is empty. Using default values.")
+            return default_config
+        raise parse_error
     except json.JSONDecodeError as e:
         log.error(f"Error parsing {CONFIG_FILE}: {e}. Backing up and resetting to defaults.")
         try:
@@ -877,7 +896,9 @@ def main():
             reload_config_if_requested()
             ensure_config_loaded()
 
-            serial_config = config_data.get('serial', {})
+            serial_config = config_data.get('serial')
+            if not isinstance(serial_config, dict):
+                serial_config = {}
             port = serial_config.get('port')
             baud_rate = serial_config.get('baud_rate') or 115200
 
@@ -895,7 +916,9 @@ def main():
             if not connect_fail_logged:
                 log.info(f"Port configured. Attempting to connect to {port} at {baud_rate}...")
             try:
-                ser = serial.Serial(port, baud_rate, timeout=1)
+                # write_timeout: a device that stops accepting data must not
+                # freeze the loop forever; the timeout triggers a reconnect.
+                ser = serial.Serial(port, baud_rate, timeout=1, write_timeout=2)
                 time.sleep(2) # Wait for connection to settle
                 log.info("Connected to device!")
                 connect_fail_logged = False
@@ -906,10 +929,12 @@ def main():
                     log.error(f"Failed to connect to serial port '{port}': {e}")
                     if "PermissionError" in str(e) or "Access is denied" in str(e):
                         log.info("Tip: the port might be in use by another application (e.g. Arduino IDE).")
-                    log.info("Will retry every 10 seconds. You can change the port in the UI.")
+                    log.info("Will keep retrying every few seconds. You can change the port in the UI.")
                     connect_fail_logged = True
-                time.sleep(10)
-                config_data = load_config() # Reload config before retrying
+                # Short, interruptible wait: the deck works again a few seconds
+                # after the cable is plugged back in, and a port change made in
+                # the UI is picked up immediately.
+                config_updated_event.wait(timeout=3)
                 continue
 
             # --- This is the main device loop ---
@@ -917,7 +942,7 @@ def main():
 
             # If the loop exits (e.g., device disconnect), inform the user and wait before retrying.
             log.info("Device disconnected. Waiting for reconnection or configuration change...")
-            time.sleep(5)
+            config_updated_event.wait(timeout=2)
 
         except KeyboardInterrupt:
             log.info("Exiting...")
@@ -950,6 +975,7 @@ def run_device_loop(ser):
 
     stats_interval_s = 0.5
     next_stats_time = time.monotonic()
+    consecutive_errors = 0
 
     try:
         while True:  # This loop will run as long as the device is connected
@@ -1025,19 +1051,30 @@ def run_device_loop(ser):
                     # Keep cadence stable even if we fell behind.
                     next_stats_time = now + stats_interval_s
 
+                consecutive_errors = 0
+
             except (serial.SerialException, OSError) as e:
                 log.warning(f"Device disconnected or serial error: {e}")
-                try:
-                    ser.close()
-                except Exception:
-                    pass
                 return
             except Exception as e:
-                log.error(f"An error occurred in device loop: {e}", exc_info=True)
+                consecutive_errors += 1
+                if consecutive_errors == 1:
+                    log.error(f"An error occurred in device loop: {e}", exc_info=True)
+                if consecutive_errors >= 25:
+                    # Not a one-off: the port is probably in a bad state (e.g.
+                    # after sleep/resume). Reopen it instead of spinning here.
+                    log.error(f"Device loop keeps failing ({e}). Reconnecting...")
+                    return
                 time.sleep(0.2)
     finally:
         telemetry.stop()
         action_executor.stop()
+        # Always release the COM port, otherwise the reconnect fails with
+        # "Access is denied" on our own stale handle.
+        try:
+            ser.close()
+        except Exception:
+            pass
 
 
 def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev_ext_btns, prev_slider_vals, prev_knob_vals, action_executor):

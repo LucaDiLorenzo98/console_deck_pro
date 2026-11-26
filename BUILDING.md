@@ -58,6 +58,7 @@ Output: `UI\Output\ConsoleDeckPro_Setup.exe`
 
 - Installs the Flutter UI (`console_deck_ui.exe`) and the compiled backend (`console_deck_pro.exe`) to the app directory
 - Copies `config.example.json` for reference
+- Does **not** launch the UI at the end of setup unless the user ticks the option (unticked by default); only the backend is started
 - Registers the backend to start hidden at sign-in (`HKLM\...\CurrentVersion\Run` → `console_deck_pro.exe --background`, optional task ticked by default) and starts it at the end of setup
 - Stops a running backend before upgrading or uninstalling, and removes the old manual `Console Deck PRO Backend` scheduled task
 - Cleans up legacy files from older installer versions on upgrade

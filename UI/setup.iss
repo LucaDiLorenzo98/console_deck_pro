@@ -74,7 +74,7 @@ Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""Console Deck PRO Back
 ; Start the backend right away, hidden, as the user who launched the installer
 ; (not as the elevated administrator account).
 Filename: "{app}\console_deck_pro.exe"; Parameters: "--background"; Flags: nowait runasoriginaluser
-Filename: "{app}\console_deck_ui.exe"; Description: "{cm:LaunchProgram,Console Deck PRO}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\console_deck_ui.exe"; Description: "{cm:LaunchProgram,Console Deck PRO}"; Flags: nowait postinstall skipifsilent unchecked
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM console_deck_pro.exe"; Flags: runhidden; RunOnceId: "StopBackend"
