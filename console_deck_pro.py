@@ -16,7 +16,50 @@ from pathlib import Path
 from threading import Thread, Event
 
 APP_NAME = "ConsoleDeckPro"
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.2.0"
+
+# --background: started automatically at Windows sign-in (the installer registers
+# the exe with this flag). No console window is ever created and nothing waits
+# for a key press; all output goes to the log file only.
+BACKGROUND_MODE = "--background" in sys.argv
+
+def _setup_console() -> bool:
+    """
+    Make sure sys.stdout/sys.stderr are usable and return True when the user
+    can actually see them.
+
+    The Windows exe is built without a console (see console_deck_pro.spec) so
+    that the automatic start at sign-in never flashes a terminal window. When
+    the exe is started by hand we open a console ourselves, so status and error
+    messages stay visible exactly as before.
+    """
+    if sys.stdout is not None and sys.stderr is not None:
+        return True  # Started from a terminal / python.exe: nothing to do.
+
+    if sys.platform == "win32" and not BACKGROUND_MODE:
+        try:
+            kernel32 = ctypes.windll.kernel32
+            if kernel32.AllocConsole():
+                kernel32.SetConsoleTitleW("Console Deck PRO backend")
+                sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace", buffering=1)
+                sys.stderr = sys.stdout
+                sys.stdin = open("CONIN$", "r", encoding="utf-8", errors="replace")
+                return True
+        except Exception:
+            pass
+
+    # No console at all. Libraries such as uvicorn call sys.stdout.isatty() and
+    # crash on None, so point the standard streams at the null device.
+    try:
+        if sys.stdout is None:
+            sys.stdout = open(os.devnull, "w")
+        if sys.stderr is None:
+            sys.stderr = open(os.devnull, "w")
+    except Exception:
+        pass
+    return False
+
+HAS_CONSOLE = _setup_console()
 
 def _default_app_dir() -> str:
     """
@@ -66,8 +109,7 @@ def _setup_logging():
         log.addHandler(file_handler)
     except Exception:
         pass  # File logging is best-effort; console output still works.
-    # sys.stdout is None in windowed (no-console) builds.
-    if sys.stdout is not None:
+    if HAS_CONSOLE:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
@@ -99,8 +141,11 @@ threading.excepthook = _log_thread_exception
 def _pause_before_exit():
     """
     Keep the console window open so the user can read the error before it closes.
-    Skipped for scheduled/headless runs via --no-pause or CONSOLE_DECK_PRO_NO_PAUSE=1.
+    Skipped for scheduled/headless runs via --background, --no-pause or
+    CONSOLE_DECK_PRO_NO_PAUSE=1.
     """
+    if BACKGROUND_MODE or not HAS_CONSOLE:
+        return
     if os.getenv("CONSOLE_DECK_PRO_NO_PAUSE") in ("1", "true", "True"):
         return
     if "--no-pause" in sys.argv:
@@ -282,11 +327,19 @@ def _press_system_volume_key(key: str, count: int = 1):
         pyautogui.press(key)
 
 # GPU Utils (Optional)
-try:
-    import GPUtil
-    HAS_GPUTIL = True
-except ImportError:
-    HAS_GPUTIL = False
+# Not used on Windows: GPUtil spawns nvidia-smi without CREATE_NO_WINDOW, which
+# pops up a console window on every sample when the backend runs without one.
+HAS_GPUTIL = False
+if platform.system() != "Windows":
+    try:
+        import GPUtil
+        HAS_GPUTIL = True
+    except Exception:
+        HAS_GPUTIL = False
+
+# Keeps console child processes (nvidia-smi) from opening a window. 0 elsewhere.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_nvidia_smi_missing = False
 
 # Debug / Logging Configuration
 # Printing telemetry every 0.5s can cause micro-stutters on some systems due to console I/O.
@@ -587,6 +640,10 @@ def _get_gpu_stats():
         except Exception:
             pass
 
+    global _nvidia_smi_missing
+    if _nvidia_smi_missing:
+        return -1, -1
+
     try:
         # Avoid shell=True for performance and safety.
         proc = subprocess.run(
@@ -599,12 +656,17 @@ def _get_gpu_stats():
             text=True,
             timeout=1.0,
             check=False,
+            creationflags=_NO_WINDOW,
         )
         out = (proc.stdout or "").strip()
         if out:
-            parts = [p.strip() for p in out.split(",")]
+            # One line per GPU: use the first one.
+            parts = [p.strip() for p in out.splitlines()[0].split(",")]
             if len(parts) >= 2:
                 return int(parts[0]), int(parts[1])
+    except FileNotFoundError:
+        # No NVIDIA driver installed: stop trying every couple of seconds.
+        _nvidia_smi_missing = True
     except Exception:
         pass
 
@@ -1090,6 +1152,8 @@ if __name__ == "__main__":
     log.info(f"Python {sys.version.split()[0]} on {platform.platform()}")
     log.info(f"Config file: {CONFIG_FILE}")
     log.info(f"Log file: {LOG_FILE}")
+    if BACKGROUND_MODE:
+        log.info("Started in background mode (no console window)")
     try:
         main()
     except KeyboardInterrupt:

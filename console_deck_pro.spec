@@ -43,7 +43,10 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    # Windowed on purpose: the installer starts the backend at sign-in with
+    # --background and no console must appear. Started by hand, the backend
+    # opens its own console (see _setup_console in console_deck_pro.py).
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

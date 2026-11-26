@@ -19,7 +19,7 @@ py -m PyInstaller --noconfirm console_deck_pro.spec
 
 Output: `dist\console_deck_pro.exe`
 
-> Always build from the `.spec` file — it includes the uvicorn hidden imports the exe needs at runtime and builds a **console** app on purpose, so users can see status and error messages (everything is also written to `%APPDATA%\ConsoleDeckPro\logs\backend.log`).
+> Always build from the `.spec` file — it includes the uvicorn hidden imports the exe needs at runtime and builds a **windowed** (no console) app on purpose, so the automatic start at sign-in (`--background`) never shows a terminal. Started by hand without `--background`, the exe opens its own console window; everything is also written to `%APPDATA%\ConsoleDeckPro\logs\backend.log`.
 
 ---
 
@@ -58,7 +58,8 @@ Output: `UI\Output\ConsoleDeckPro_Setup.exe`
 
 - Installs the Flutter UI (`console_deck_ui.exe`) and the compiled backend (`console_deck_pro.exe`) to the app directory
 - Copies `config.example.json` for reference
-- Does **not** auto-start the backend — users must launch it manually or add it to Windows startup themselves (e.g. via Task Scheduler or `shell:startup`)
+- Registers the backend to start hidden at sign-in (`HKLM\...\CurrentVersion\Run` → `console_deck_pro.exe --background`, optional task ticked by default) and starts it at the end of setup
+- Stops a running backend before upgrading or uninstalling, and removes the old manual `Console Deck PRO Backend` scheduled task
 - Cleans up legacy files from older installer versions on upgrade
 
 ---
