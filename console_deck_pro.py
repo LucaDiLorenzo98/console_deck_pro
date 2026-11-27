@@ -22,6 +22,17 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
 
+if sys.platform == "win32":
+    # Up to Python 3.11, the first platform.system()/platform.platform() call
+    # (ours or a library's) runs "cmd /c ver" to read the Windows version. From
+    # an exe without a console that flashes a terminal window at every start.
+    # The same information is available without it (sys.getwindowsversion),
+    # which is what platform falls back to when this helper returns nothing.
+    try:
+        platform._syscmd_ver = lambda system="", release="", version="", *args, **kwargs: (system, release, version)
+    except Exception:
+        pass
+
 APP_NAME = "ConsoleDeckPro"
 APP_VERSION = "2.2.0"
 
@@ -435,13 +446,25 @@ def get_backend_status():
 
 def run_server():
     # Uvicorn logging can be noisy, this can be changed to 'info' for more detail
-    try:
-        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
-    except Exception:
-        # Keep the serial loop alive: macros still work without the API,
-        # but the UI will not be able to connect.
-        log.error("API server failed to start. The UI will not be able to connect.", exc_info=True)
-        log.error(f"See log at {LOG_FILE}")
+    #
+    # If the server cannot start or stops (e.g. port 8000 briefly taken), keep
+    # trying: the serial loop stays alive so macros still work, and the UI can
+    # connect again as soon as the port is free. Without the retry the backend
+    # would stay invisible to the UI until it is killed by hand. uvicorn reports
+    # a failed bind with SystemExit, not with an ordinary exception.
+    failure_logged = False
+    while True:
+        try:
+            uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+            reason = "stopped"
+        except (Exception, SystemExit):
+            reason = "failed to start"
+            if not failure_logged:
+                log.error("API server error:", exc_info=True)
+        if not failure_logged:
+            log.error(f"API server {reason}. The UI cannot connect until it is back; retrying every 5 seconds.")
+            failure_logged = True
+        time.sleep(5)
 
 
 def _check_api_port_available():
@@ -503,7 +526,7 @@ def load_config():
         for attempt in range(4):
             if attempt:
                 time.sleep(0.25)
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            with open(CONFIG_FILE, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
             if not content.strip():
                 continue
@@ -704,6 +727,7 @@ def _get_gpu_stats():
     Best-effort GPU utilization (%) and temperature (C).
     Returns (-1, -1) when unavailable.
     """
+    global _nvidia_smi_missing
     if HAS_GPUTIL:
         try:
             gpus = GPUtil.getGPUs()
@@ -712,7 +736,6 @@ def _get_gpu_stats():
         except Exception:
             pass
 
-    global _nvidia_smi_missing
     if _nvidia_smi_missing:
         return -1, -1
 
@@ -923,9 +946,8 @@ def main():
                 log.info("Connected to device!")
                 connect_fail_logged = False
             except serial.SerialException as e:
-                if connect_fail_logged:
-                    log.debug(f"Still failing to connect to serial port '{port}': {e}")
-                else:
+                # Logged once per outage: retries are frequent and would fill the log.
+                if not connect_fail_logged:
                     log.error(f"Failed to connect to serial port '{port}': {e}")
                     if "PermissionError" in str(e) or "Access is denied" in str(e):
                         log.info("Tip: the port might be in use by another application (e.g. Arduino IDE).")

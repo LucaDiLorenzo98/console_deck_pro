@@ -13,7 +13,7 @@ This is an **open-source maker project**. The full package (3D-printable enclosu
 | `console_deck_pro_arduino/` | Arduino firmware (upload once to the board) |
 | `UI/` | Flutter desktop app (Windows / macOS / Linux) |
 | `console_deck_pro.py` | Python backend source — bridges the Arduino with the OS |
-| `dist/console_deck_pro.exe` | Compiled backend executable (produced by CI via PyInstaller) |
+| `dist/console_deck_pro/` | Compiled backend: `console_deck_pro.exe` plus its `_internal` folder (produced by CI via PyInstaller) |
 | `config.example.json` | Example configuration — copy to get started |
 | `requirements.txt` | Python dependencies (for manual / dev use) |
 | `BUILDING.md` | How to build the installer from source |

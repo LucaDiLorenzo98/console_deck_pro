@@ -43,8 +43,8 @@ Name: "autostartbackend"; Description: "{cm:AutoStartBackend}"; GroupDescription
 ; IMPORTANT: Ensure you have run "flutter build windows" before compiling this script
 Source: "build\windows\x64\runner\Release\console_deck_ui.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb"
-; Python backend compiled executable (built by PyInstaller in CI)
-Source: "..\dist\console_deck_pro.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Python backend (built by PyInstaller in CI): console_deck_pro.exe plus its _internal folder
+Source: "..\dist\console_deck_pro\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\config.example.json"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
@@ -52,6 +52,8 @@ Source: "..\config.example.json"; DestDir: "{app}"; Flags: ignoreversion
 Type: filesandordirs; Name: "{app}\backend"
 Type: filesandordirs; Name: "{app}\tools"
 Type: files; Name: "{app}\console_deck_pro.exe"
+; Backend libraries are replaced as a whole so nothing stale survives an upgrade.
+Type: filesandordirs; Name: "{app}\_internal"
 
 [Registry]
 ; Start the backend at sign-in, in the user's own desktop session (hotkeys, volume

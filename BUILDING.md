@@ -17,7 +17,7 @@ From the project root:
 py -m PyInstaller --noconfirm console_deck_pro.spec
 ```
 
-Output: `dist\console_deck_pro.exe`
+Output: the folder `dist\console_deck_pro\` (`console_deck_pro.exe` plus `_internal\`). The exe does not run without the `_internal` folder next to it.
 
 > Always build from the `.spec` file — it includes the uvicorn hidden imports the exe needs at runtime and builds a **windowed** (no console) app on purpose, so the automatic start at sign-in (`--background`) never shows a terminal. Started by hand without `--background`, the exe opens its own console window; everything is also written to `%APPDATA%\ConsoleDeckPro\logs\backend.log`.
 
@@ -44,7 +44,7 @@ flutter build windows \
 
 ## 3 — Build the Windows installer
 
-1. Make sure `dist\console_deck_pro.exe` exists (built in step 1 — the `.iss` script reads it from there)
+1. Make sure the folder `dist\console_deck_pro\` exists (built in step 1 — the `.iss` script reads it from there)
 2. Open `UI\setup.iss` in Inno Setup Compiler
 3. Press **Compile** (Ctrl+F9)
 
