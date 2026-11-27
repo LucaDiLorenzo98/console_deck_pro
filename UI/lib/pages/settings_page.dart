@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 
+import '../app_version.dart';
 import '../services/config_service.dart';
 import '../theme_state.dart';
 import '../locale_state.dart';
@@ -656,7 +657,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                             const SizedBox(width: 16),
                             Text(
-                              '${AppStrings.get(currentLocale, AppKeys.appVersion)} 0.1.0',
+                              '${AppStrings.get(currentLocale, AppKeys.appVersion)} $kAppVersion',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),

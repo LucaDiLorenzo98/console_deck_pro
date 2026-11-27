@@ -415,9 +415,6 @@ ANALOG_ABSOLUTE_DEADBAND = 2
 app = FastAPI()
 config_data = None
 config_updated_event = Event() # Used to signal the main thread to reload the config
-last_volume_target = None
-# For slider brightness: store previous raw value so we apply delta, not absolute
-_last_brightness_slider_raw = None
 
 @app.post("/reload")
 def reload_config_endpoint():
@@ -582,8 +579,195 @@ def ensure_config_loaded():
     return config_data
 
 
+def _open_url(value):
+    url = str(value or "").strip()
+    if not url:
+        return
+    # "example.com" without a scheme would be treated as a file name.
+    if "://" not in url and not url.lower().startswith(("mailto:", "file:")):
+        url = "https://" + url
+    webbrowser.open(url)
+
+
+def _open_app(value):
+    target = os.path.expandvars(str(value or "").strip().strip('"'))
+    if not target:
+        return
+    if platform.system() == "Windows" and os.path.exists(target):
+        # Same as a double-click: works for .exe, shortcuts (.lnk) and
+        # documents, and starts the program in its own folder.
+        os.startfile(target, cwd=os.path.dirname(target) or None)
+        return
+    # A command line with arguments, or a program found through PATH.
+    subprocess.Popen(target)
+
+
+# Key names written by the UI (or by hand) that pyautogui calls differently.
+_HOTKEY_ALIASES = {
+    "meta": "win", "super": "win", "windows": "win", "cmd": "win",
+    "control": "ctrl", "return": "enter", "del": "delete", "ins": "insert",
+    "page up": "pageup", "page down": "pagedown",
+    "arrow up": "up", "arrow down": "down", "arrow left": "left", "arrow right": "right",
+    " ": "space", "plus": "+",
+}
+
+def _send_hotkey(value):
+    if isinstance(value, str):
+        value = value.split("+")
+    if not isinstance(value, (list, tuple)):
+        return
+    keys = []
+    for key in value:
+        key = str(key).strip().lower()
+        key = _HOTKEY_ALIASES.get(key, key)
+        if key:
+            keys.append(key)
+    if not keys:
+        return
+    # pyautogui silently skips names it does not know, which would turn
+    # e.g. Win+P into a plain "p". Send nothing rather than the wrong keys.
+    known = getattr(pyautogui, "KEYBOARD_KEYS", None)
+    if known:
+        unknown = [k for k in keys if k not in known]
+        if unknown:
+            log.warning(f"Hotkey {'+'.join(keys)} not sent: unknown key(s) {', '.join(unknown)}.")
+            return
+    if len(keys) == 1:
+        pyautogui.press(keys[0])
+    else:
+        pyautogui.hotkey(*keys)
+
+
+class AnalogOutputs:
+    """
+    Applies slider/knob positions (0-100) to system volume and screen brightness.
+
+    The deck reports the position of each control about 100 times per second.
+    Handling every report as its own action is what made displays go haywire:
+    each brightness change is a slow monitor command (DDC/CI, with retries), so
+    hundreds of them queued up and hammered the monitors for minutes.
+
+    Here only the latest position of each control is kept, and one background
+    thread applies it:
+      - nothing happens until the control is actually moved (the position at
+        connection time is only a starting point), and jitter of +/-1 is ignored;
+      - brightness is set to the position itself, at most a few times per second,
+        and never re-sent when it has not changed;
+      - volume follows the movement with volume keys (2% per key press);
+      - after an error (e.g. a monitor without brightness control) it waits
+        before trying again instead of retrying non-stop.
+    """
+
+    DEADBAND = 2                    # percent; smaller changes are jitter
+    BRIGHTNESS_MIN_INTERVAL = 0.3   # seconds between monitor commands
+    BRIGHTNESS_ERROR_BACKOFF = 10.0
+    MAX_VOLUME_KEYS = 25            # per step (50%)
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._wake = Event()
+        self._controls = {}
+        self._thread = None
+        self._next_brightness_time = 0.0
+        self._brightness_error_logged = False
+
+    def reset(self):
+        """Forget all positions (called on every new serial connection)."""
+        with self._lock:
+            self._controls.clear()
+
+    def update(self, control, kind, value):
+        try:
+            value = max(0, min(100, int(float(value))))
+        except (TypeError, ValueError):
+            return
+        with self._lock:
+            state = self._controls.get(control)
+            if state is None or state["kind"] != kind:
+                # First report: remember where the control is, do nothing.
+                self._controls[control] = {"kind": kind, "applied": value, "wanted": value}
+                return
+            if state["wanted"] == value:
+                return
+            state["wanted"] = value
+            if self._thread is None:
+                self._thread = Thread(target=self._run, name="analog-outputs", daemon=True)
+                self._thread.start()
+        self._wake.set()
+
+    def _pending(self):
+        with self._lock:
+            return [
+                (name, st["kind"], st["applied"], st["wanted"])
+                for name, st in self._controls.items()
+                if abs(st["wanted"] - st["applied"]) >= self.DEADBAND
+                or (st["wanted"] != st["applied"] and st["wanted"] in (0, 100))
+            ]
+
+    def _mark_applied(self, name, kind, applied):
+        with self._lock:
+            state = self._controls.get(name)
+            if state is not None and state["kind"] == kind:
+                state["applied"] = applied
+
+    def _run(self):
+        while True:
+            self._wake.wait(timeout=1.0)
+            self._wake.clear()
+            try:
+                work_left = self._apply_pending()
+            except Exception as e:
+                log.error(f"Analog output worker error: {e}", exc_info=True)
+                work_left = False
+            # Pace the loop: at most ~20 rounds per second, however fast the
+            # control is moved.
+            time.sleep(0.05)
+            if work_left:
+                self._wake.set()
+
+    def _apply_pending(self):
+        work_left = False
+        for name, kind, applied, wanted in self._pending():
+            if kind == 'set_volume':
+                steps = min(self.MAX_VOLUME_KEYS, abs(wanted - applied) // 2)
+                if steps < 1:
+                    # 1% left to an end stop: nothing to press, call it done.
+                    self._mark_applied(name, kind, wanted)
+                    continue
+                key = 'volumeup' if wanted > applied else 'volumedown'
+                _press_system_volume_key(key, steps)
+                new_applied = applied + (steps * 2 if wanted > applied else -steps * 2)
+                if wanted in (0, 100) and abs(wanted - new_applied) < 2:
+                    new_applied = wanted
+                self._mark_applied(name, kind, new_applied)
+                if ENABLE_ACTION_LOG:
+                    log.debug(f"Volume {key} x {steps} ({name}: {applied}% -> {wanted}%)")
+            elif kind == 'set_brightness':
+                now = time.monotonic()
+                if now < self._next_brightness_time:
+                    work_left = True
+                    continue
+                try:
+                    sbc.set_brightness(wanted)
+                    self._next_brightness_time = time.monotonic() + self.BRIGHTNESS_MIN_INTERVAL
+                    self._brightness_error_logged = False
+                    if ENABLE_ACTION_LOG:
+                        log.debug(f"Brightness set to {wanted}% ({name})")
+                except Exception as e:
+                    self._next_brightness_time = time.monotonic() + self.BRIGHTNESS_ERROR_BACKOFF
+                    if not self._brightness_error_logged:
+                        log.error(f"Could not set screen brightness (the display may not support it): {e}")
+                        self._brightness_error_logged = True
+                # Applied either way: a failed value is not retried until the
+                # control moves again.
+                self._mark_applied(name, kind, wanted)
+        return work_left
+
+
+analog_outputs = AnalogOutputs()
+
+
 def execute_action(action_def, absolute_value=None, multiplier=1):
-    global last_volume_target, _last_brightness_slider_raw
     if not action_def or not isinstance(action_def, dict):
         return
 
@@ -603,18 +787,15 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
         if action_type == 'open_url':
             if ENABLE_ACTION_LOG:
                 log.debug(f"Opening URL: {value}")
-            webbrowser.open(value)
+            _open_url(value)
         elif action_type == 'open_app':
             if ENABLE_ACTION_LOG:
                 log.debug(f"Opening App: {value}")
-            subprocess.Popen(value)
+            _open_app(value)
         elif action_type == 'hotkey':
             if ENABLE_ACTION_LOG:
                 log.debug(f"Sending Hotkey: {value}")
-            if isinstance(value, list):
-                pyautogui.hotkey(*value)
-            else:
-                pyautogui.press(value)
+            _send_hotkey(value)
         elif action_type == 'type':
             if ENABLE_ACTION_LOG:
                 log.debug(f"Typing: {value}")
@@ -632,20 +813,12 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
                     log.debug(f"Brightness: {current} -> {new_val}")
             except Exception as e:
                 log.error(f"Brightness control failed: {e}")
+        elif action_type in ('set_volume', 'set_brightness') and absolute_value is not None:
+            # Slider/knob position. Never handled here one sample at a time:
+            # see AnalogOutputs for why.
+            analog_outputs.update(action_type, action_type, absolute_value)
         elif action_type == 'set_volume':
-            target = max(0, min(100, int(float(value))))
-            if last_volume_target is None:
-                last_volume_target = target
-                return
-            delta = target - last_volume_target
-            if abs(delta) < ANALOG_ABSOLUTE_DEADBAND:
-                return
-            key = 'volumeup' if delta > 0 else 'volumedown'
-            count = min(30, max(1, int(round(abs(delta) / 2.0))))
-            if ENABLE_ACTION_LOG:
-                log.debug(f"Set Volume (approx): {key} x {count} (target {target}%)")
-            _press_system_volume_key(key, count)
-            last_volume_target = target
+            log.warning("'set_volume' only works on a slider or knob. Ignored.")
         elif action_type == 'toggle_mute':
             _press_system_volume_key('volumemute', 1)
             if ENABLE_ACTION_LOG:
@@ -659,28 +832,20 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
                 log.debug(f"Change Volume: {key} x {count}")
             _press_system_volume_key(key, count)
         elif action_type == 'set_brightness':
-            # Relative everywhere: from slider use delta of position; from config use value as delta
+            # From a button: the configured value is a step (e.g. +10 / -10).
+            try:
+                step = int(float(value))
+            except (TypeError, ValueError):
+                log.warning("'set_brightness' on a button needs a numeric step value. Ignored.")
+                return
             try:
                 current = sbc.get_brightness()
                 if isinstance(current, list): current = current[0]
-                if absolute_value is not None:
-                    # Slider: apply difference from previous position (raw 0–1023)
-                    raw = int(float(absolute_value))
-                    if _last_brightness_slider_raw is None:
-                        _last_brightness_slider_raw = raw
-                        return
-                    delta_raw = raw - _last_brightness_slider_raw
-                    _last_brightness_slider_raw = raw
-                    # Scale slider delta to brightness delta (~0–1023 -> ~0–100)
-                    delta_pct = round(delta_raw * 100.0 / 1023.0)
-                    new_val = min(100, max(0, current + delta_pct))
-                else:
-                    # Button/config: value is delta
-                    delta_pct = int(value)
-                    new_val = min(100, max(0, current + delta_pct))
-                sbc.set_brightness(new_val)
+                new_val = min(100, max(0, current + step))
+                if new_val != current:
+                    sbc.set_brightness(new_val)
                 if ENABLE_ACTION_LOG:
-                    log.debug(f"Brightness: {current} -> {new_val} (relative)")
+                    log.debug(f"Brightness: {current} -> {new_val} (step)")
             except Exception as e:
                 log.error(f"Set Brightness failed: {e}")
         elif action_type == 'play_audio':
@@ -1007,6 +1172,9 @@ def run_device_loop(ser):
 
     _send_boot_message(ser)
 
+    # Slider/knob positions seen before this connection mean nothing now.
+    analog_outputs.reset()
+
     rx_buffer = bytearray()  # Bytes received after the last complete line.
     line_synced = False
     stats_interval_s = 0.5
@@ -1205,10 +1373,16 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                 
                 def handle_analog(curr, prev, name):
                     abs_mapping = get_mapping(name)
-                    if abs_mapping:
-                        if curr != prev:
-                            action_executor.submit(abs_mapping, absolute_value=curr)
+                    if isinstance(abs_mapping, dict) and abs_mapping.get('action') in ('set_volume', 'set_brightness'):
+                        # Position-following outputs: only the latest position
+                        # matters, so these never go through the action queue.
+                        analog_outputs.update(name, abs_mapping['action'], curr)
                         return curr
+                    if abs_mapping:
+                        if prev is not None and abs(curr - prev) >= ANALOG_ABSOLUTE_DEADBAND:
+                            action_executor.submit(abs_mapping, absolute_value=curr)
+                            return curr
+                        return curr if prev is None else prev
 
                     if prev is None:
                         return curr
