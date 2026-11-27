@@ -489,6 +489,18 @@ def _check_api_port_available():
     except (_requests.exceptions.RequestException, ValueError):
         pass
 
+    if BACKGROUND_MODE:
+        # Started at sign-in or by the installer: nobody would see the error
+        # and the deck would silently stop working. The single-instance lock
+        # already ruled out a second backend, so the port is held by another
+        # program, maybe only briefly: keep the macros running and let
+        # run_server() retry until the UI can connect again.
+        log.error(
+            "Port 8000 is in use by another program. Macros keep working; "
+            "the UI can connect once the port is free."
+        )
+        return
+
     _fatal_exit(
         "Port 8000 is already in use by another program. "
         "Close the program using it, then start the backend again."
@@ -995,6 +1007,8 @@ def run_device_loop(ser):
 
     _send_boot_message(ser)
 
+    rx_buffer = bytearray()  # Bytes received after the last complete line.
+    line_synced = False
     stats_interval_s = 0.5
     next_stats_time = time.monotonic()
     consecutive_errors = 0
@@ -1012,11 +1026,26 @@ def run_device_loop(ser):
                 timeout = max(0.0, min(0.02, next_stats_time - now))
                 ser.timeout = timeout
 
-                raw = ser.readline()
-                if raw:
-                    text = raw.decode("utf-8", errors="ignore")
-                    for line in text.splitlines():
-                        line = line.strip()
+                # Read whatever has arrived (drains the backlog so we never lag
+                # behind the Arduino) and only parse lines whose newline has
+                # been received. readline() with a short timeout returns half
+                # lines whenever the timeout hits mid-line (timeout is 0 when
+                # STATS are due), and a cut value such as "1023" -> "10" made
+                # sliders/volume jump and fired phantom button presses.
+                chunk = ser.read(ser.in_waiting or 1)
+                if chunk:
+                    rx_buffer.extend(chunk)
+                    *complete_lines, rest = rx_buffer.split(b"\n")
+                    rx_buffer = bytearray(rest)
+                    if complete_lines and not line_synced:
+                        # The first line after connecting may have started
+                        # before we did: its head is missing, skip it.
+                        complete_lines = complete_lines[1:]
+                        line_synced = True
+                    if len(rx_buffer) > 4096:
+                        rx_buffer.clear()  # No newline in sight: garbage, drop it.
+                    for raw_line in complete_lines:
+                        line = raw_line.decode("utf-8", errors="ignore").strip()
                         if not line:
                             continue
                         process_serial_line(
@@ -1029,26 +1058,6 @@ def run_device_loop(ser):
                             prev_knob_vals,
                             action_executor,
                         )
-                    # Drain remaining lines so we don't lag behind Arduino
-                    while ser.in_waiting:
-                        raw = ser.readline()
-                        if not raw:
-                            break
-                        text = raw.decode("utf-8", errors="ignore")
-                        for line in text.splitlines():
-                            line = line.strip()
-                            if not line:
-                                continue
-                            process_serial_line(
-                                line,
-                                prev_main_btns,
-                                prev_enc_click,
-                                prev_enc_val,
-                                prev_ext_btns,
-                                prev_slider_vals,
-                                prev_knob_vals,
-                                action_executor,
-                            )
 
                 now = time.monotonic()
                 if now >= next_stats_time:
