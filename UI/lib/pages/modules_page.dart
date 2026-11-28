@@ -419,7 +419,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     final config = widget.currentConfig;
 
     _availableTypes = _isAnalog
-        ? ['None', 'Volume', 'Brightness']
+        ? ['None', 'Volume']
         : ['None', 'Link', 'App', 'Hotkey', 'Audio'];
 
     _selectedType = config['type'] ?? 'None';

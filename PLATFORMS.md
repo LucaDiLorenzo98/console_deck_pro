@@ -14,12 +14,10 @@ Lo script Python e l’UI Flutter sono pensati per funzionare su **Windows**, **
 | Funzione            | Windows              | macOS                    | Linux                         |
 |---------------------|----------------------|---------------------------|-------------------------------|
 | **Volume** | Tasti volume (WinAPI/APPCOMMAND) | Tasti volume (simulazione) | Tasti volume (simulazione)    |
-| **Luminosità**      | sbc (WMI/VCP)        | Non supportata da sbc*    | sbc (es. `sys/backlight`)     |
 | **Temperatura CPU** | psutil o WMI         | psutil                    | psutil                        |
 | **GPU / nvidia-smi**| Opzionale            | N/A                       | Se presente, usata per stats  |
 | **Piano (nota default)** | pygame o winsound   | pygame o afplay              | pygame o aplay                   |
 
-\* Su macOS la libreria `screen-brightness-control` non è supportata; le azioni di luminosità vanno in errore in log ma il resto dell’app continua a funzionare.
 
 ## Path di configurazione
 
@@ -31,12 +29,11 @@ L’UI Flutter usa gli stessi path (e migra da eventuali path legacy se presenti
 
 ## Dipendenze Python
 
-- **Comuni**: `fastapi`, `uvicorn`, `pyserial`, `pyautogui`, `psutil`, `screen-brightness-control`, `pygame`
+- **Comuni**: `fastapi`, `uvicorn`, `pyserial`, `pyautogui`, `psutil`, `pygame`
 - **Solo Windows** (opzionali): `GPUtil` (GPU)
 
 ## Requisiti extra su Linux
 
-- **Luminosità**: permessi in lettura/scrittura su `/sys/class/backlight/...` (o uso di `ddcutil`/`xrandr` a seconda del backend sbc).
 - **Piano (fallback)**: `aplay` (pacchetto `alsa-utils`) per le note predefinite se `pygame` non è disponibile.
 
-In sintesi: sì, puoi usarlo su macOS e Linux allo stesso modo; volume e luminosità hanno fallback o limiti descritti sopra.
+In sintesi: sì, puoi usarlo su macOS e Linux allo stesso modo; il volume ha i fallback o limiti descritti sopra.

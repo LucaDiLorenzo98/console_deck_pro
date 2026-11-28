@@ -1,6 +1,6 @@
 # Console Deck PRO
 
-A DIY macro deck built around an Arduino Nano — 9 programmable buttons, a rotary encoder, an OLED display, and an expandable module system (sliders, knobs, extra buttons). Each button can open a URL, launch an app, send a hotkey, control volume or screen brightness, and more. Configure everything from the desktop UI, no code editing required.
+A DIY macro deck built around an Arduino Nano — 9 programmable buttons, a rotary encoder, an OLED display, and an expandable module system (sliders, knobs, extra buttons). Each button can open a URL, launch an app, send a hotkey, control volume, and more. Configure everything from the desktop UI, no code editing required.
 
 This is an **open-source maker project**. The full package (3D-printable enclosure files, electronics schematics, and BOM) is available as part of the crowdfunding campaign.
 
@@ -88,7 +88,6 @@ The installer starts the backend for you, hidden in the background, and register
 | `type_text` | Types a text string |
 | `mute` | Toggles system mute |
 | `set_volume` | Maps slider/knob to system volume |
-| `set_brightness` | Maps slider/knob to screen brightness |
 | `home_assistant` | Triggers a Home Assistant service call |
 
 ---
@@ -97,7 +96,7 @@ The installer starts the backend for you, hidden in the background, and register
 
 Connect an expansion board to the side connector and select the module type from the on-device menu:
 
-- **Sliders** — 2 analog sliders (typically volume + brightness)
+- **Sliders** — 2 analog sliders (e.g. volume)
 - **Knobs** — 2 rotary knobs
 - **Buttons** — 6 additional momentary buttons
 
@@ -140,7 +139,7 @@ The installer adds the backend to the Windows startup apps (option *"Start the b
 "C:\Program Files\Console Deck PRO\console_deck_pro.exe" --background
 ```
 
-`--background` means: no console window, no waiting for a key press, output only in the log file. The backend runs in your own desktop session, which is required for hotkeys, volume and brightness control.
+`--background` means: no console window, no waiting for a key press, output only in the log file. The backend runs in your own desktop session, which is required for hotkeys and volume control.
 
 - **Turn it off / on:** Task Manager → **Startup apps** → `console_deck_pro` → Disable / Enable. Or re-run the installer and untick the option.
 - **Stop the running backend:** Task Manager → Details → end `console_deck_pro.exe`.

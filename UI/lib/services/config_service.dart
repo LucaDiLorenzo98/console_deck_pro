@@ -162,9 +162,6 @@ class ConfigService {
         case 'Volume':
           entry['action'] = 'set_volume';
           break;
-        case 'Brightness':
-          entry['action'] = 'set_brightness';
-          break;
         case 'None':
           target.remove(key);
           mappings['main'] = mainMappings;
@@ -363,7 +360,8 @@ class ConfigService {
     } else if (action == 'set_volume') {
       type = 'Volume';
     } else if (action == 'set_brightness') {
-      type = 'Brightness';
+      // Screen brightness was removed: show the control as unassigned.
+      type = 'None';
     } else if (action == 'home_assistant') {
       type = 'HomeAssistant';
       final entityId = (entry['entity_id'] ?? '').toString();

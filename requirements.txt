@@ -3,7 +3,6 @@ uvicorn[standard]
 python-dotenv
 pyserial
 pyautogui
-screen-brightness-control
 psutil
 GPUtil
 pygame; python_version < "3.14"
