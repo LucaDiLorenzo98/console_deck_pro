@@ -23,6 +23,10 @@ class AppKeys {
   static const String audioFile = 'audio_file';
   static const String actionVolume = 'action_volume';
   static const String actionBrightness = 'action_brightness';
+  static const String actionAppVolume = 'action_app_volume';
+  static const String appVolumeName = 'app_volume_name';
+  static const String appVolumeHint = 'app_volume_hint';
+  static const String appVolumeRunning = 'app_volume_running';
   static const String url = 'url';
   static const String urlHint = 'url_hint';
   static const String executablePath = 'executable_path';
@@ -105,6 +109,10 @@ class AppStrings {
       AppKeys.audioFile: 'Audio File',
       AppKeys.actionVolume: 'Volume',
       AppKeys.actionBrightness: 'Brightness',
+      AppKeys.actionAppVolume: 'App volume',
+      AppKeys.appVolumeName: 'App name',
+      AppKeys.appVolumeHint: 'e.g. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps playing audio now:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://example.com',
       AppKeys.executablePath: 'Executable Path',
@@ -185,6 +193,10 @@ class AppStrings {
       AppKeys.audioFile: 'File Audio',
       AppKeys.actionVolume: 'Volume',
       AppKeys.actionBrightness: 'Luminosita',
+      AppKeys.actionAppVolume: 'Volume di un\'app',
+      AppKeys.appVolumeName: 'Nome dell\'app',
+      AppKeys.appVolumeHint: 'es. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'App che stanno riproducendo audio:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://compra.com',
       AppKeys.executablePath: 'Percorso Eseguibile',
@@ -266,6 +278,10 @@ class AppStrings {
       AppKeys.audioFile: 'Archivo de Audio',
       AppKeys.actionVolume: 'Volumen',
       AppKeys.actionBrightness: 'Brillo',
+      AppKeys.actionAppVolume: 'Volumen de una app',
+      AppKeys.appVolumeName: 'Nombre de la app',
+      AppKeys.appVolumeHint: 'p. ej. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps que reproducen audio ahora:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://ejemplo.com',
       AppKeys.executablePath: 'Ruta Ejecutable',
@@ -348,6 +364,10 @@ class AppStrings {
       AppKeys.audioFile: 'Fichier Audio',
       AppKeys.actionVolume: 'Volume',
       AppKeys.actionBrightness: 'Luminosité',
+      AppKeys.actionAppVolume: 'Volume d\'une app',
+      AppKeys.appVolumeName: 'Nom de l\'app',
+      AppKeys.appVolumeHint: 'ex. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps qui diffusent du son :',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://exemple.com',
       AppKeys.executablePath: 'Chemin Exécutable',
@@ -430,6 +450,10 @@ class AppStrings {
       AppKeys.audioFile: 'Audiodatei',
       AppKeys.actionVolume: 'Lautstärke',
       AppKeys.actionBrightness: 'Helligkeit',
+      AppKeys.actionAppVolume: 'App-Lautstärke',
+      AppKeys.appVolumeName: 'App-Name',
+      AppKeys.appVolumeHint: 'z. B. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps, die gerade Ton ausgeben:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://beispiel.de',
       AppKeys.executablePath: 'Pfad',
@@ -509,6 +533,10 @@ class AppStrings {
       AppKeys.audioFile: '音频文件',
       AppKeys.actionVolume: '音量',
       AppKeys.actionBrightness: '亮度',
+      AppKeys.actionAppVolume: '应用音量',
+      AppKeys.appVolumeName: '应用名称',
+      AppKeys.appVolumeHint: '例如 spotify、discord、chrome',
+      AppKeys.appVolumeRunning: '正在播放音频的应用：',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://example.com',
       AppKeys.executablePath: '执行路径',
@@ -583,6 +611,10 @@ class AppStrings {
       AppKeys.audioFile: 'オーディオファイル',
       AppKeys.actionVolume: '音量',
       AppKeys.actionBrightness: '明るさ',
+      AppKeys.actionAppVolume: 'アプリの音量',
+      AppKeys.appVolumeName: 'アプリ名',
+      AppKeys.appVolumeHint: '例: spotify、discord、chrome',
+      AppKeys.appVolumeRunning: '音声を再生中のアプリ:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://example.com',
       AppKeys.executablePath: '実行パス',

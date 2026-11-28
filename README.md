@@ -88,6 +88,7 @@ The installer starts the backend for you, hidden in the background, and register
 | `type_text` | Types a text string |
 | `mute` | Toggles system mute |
 | `set_volume` | Maps slider/knob to system volume |
+| `set_app_volume` | Maps slider/knob to the volume of one app in the Windows mixer (e.g. Spotify, Discord) |
 | `home_assistant` | Triggers a Home Assistant service call |
 
 ---
@@ -96,7 +97,7 @@ The installer starts the backend for you, hidden in the background, and register
 
 Connect an expansion board to the side connector and select the module type from the on-device menu:
 
-- **Sliders** — 2 analog sliders (e.g. volume)
+- **Sliders** — 2 analog sliders (e.g. system volume + the volume of one app)
 - **Knobs** — 2 rotary knobs
 - **Buttons** — 6 additional momentary buttons
 

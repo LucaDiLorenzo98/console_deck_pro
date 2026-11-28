@@ -424,6 +424,16 @@ def reload_config_endpoint():
     log.info("Configuration reload requested via API")
     return {"message": "Config reload signaled"}
 
+@app.get("/audio/apps")
+def get_audio_apps():
+    """Apps that currently have an entry in the Windows volume mixer."""
+    try:
+        return windows_audio.list_apps()
+    except Exception as e:
+        log.error(f"Could not list audio apps: {e}")
+        return []
+
+
 @app.get("/serial/ports")
 def get_serial_ports():
     ports = list_ports.comports()
@@ -636,9 +646,117 @@ def _send_hotkey(value):
         pyautogui.hotkey(*keys)
 
 
+class WindowsAudio:
+    """
+    Per-application and microphone volume through the Windows audio mixer
+    (Core Audio, via pycaw). These are plain in-process calls to the audio
+    service: cheap, and safe to repeat while a slider is being moved.
+    Windows only; everywhere else every method reports "not available".
+    """
+
+    def __init__(self):
+        self._tls = threading.local()
+        self._utils = None
+        self._unavailable = platform.system() != "Windows"
+
+    def _ready(self):
+        if self._unavailable:
+            return False
+        if not getattr(self._tls, "com_ready", False):
+            try:
+                import comtypes
+                try:
+                    comtypes.CoInitialize()  # Needed once in every thread that uses COM.
+                except OSError:
+                    pass  # Already initialised in another mode: usable as it is.
+                self._tls.com_ready = True
+            except Exception as e:
+                log.error(f"Windows audio mixer not available: {e}")
+                self._unavailable = True
+                return False
+        if self._utils is None:
+            try:
+                from pycaw.pycaw import AudioUtilities
+                self._utils = AudioUtilities
+            except Exception as e:
+                log.error(f"Windows audio mixer not available: {e}")
+                self._unavailable = True
+                return False
+        return True
+
+    @staticmethod
+    def normalize(name):
+        name = str(name or "").strip().strip('"').replace("\\", "/").rsplit("/", 1)[-1].lower()
+        return name[:-4] if name.endswith(".exe") else name
+
+    def _sessions(self):
+        """Yield (normalized process name, session) for apps in the mixer."""
+        for session in self._utils.GetAllSessions():
+            try:
+                process = session.Process
+                if process is None:
+                    continue  # System sounds.
+                yield self.normalize(process.name()), session
+            except Exception:
+                continue  # The app closed in the meantime.
+
+    def list_apps(self):
+        """Names of the apps that currently have an entry in the volume mixer."""
+        if not self._ready():
+            return []
+        return sorted({name for name, _ in self._sessions() if name})
+
+    def set_app_volume(self, app, percent):
+        """Returns how many mixer entries were changed (0 = app not playing)."""
+        if not self._ready():
+            return 0
+        wanted = self.normalize(app)
+        if not wanted:
+            return 0
+        level = max(0.0, min(1.0, percent / 100.0))
+        changed = 0
+        for name, session in self._sessions():
+            if name == wanted:
+                try:
+                    session.SimpleAudioVolume.SetMasterVolume(level, None)
+                    changed += 1
+                except Exception:
+                    pass
+        return changed
+
+    def set_focus_volume(self, percent):
+        """Volume of the app whose window is in the foreground."""
+        if not self._ready():
+            return 0
+        pid = ctypes.c_ulong(0)
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if not pid.value:
+            return 0
+        try:
+            return self.set_app_volume(psutil.Process(pid.value).name(), percent)
+        except Exception:
+            return 0
+
+    def set_mic_volume(self, percent):
+        if not self._ready():
+            return 0
+        device = self._utils.CreateDevice(self._utils.GetMicrophone())
+        device.volume_percent = float(percent)
+        return 1
+
+
+windows_audio = WindowsAudio()
+
+# Slider/knob functions that set a level directly (as opposed to 'set_volume',
+# which follows the movement with volume keys).
+_MIXER_ACTIONS = ('set_app_volume', 'set_focus_volume', 'set_mic_volume')
+
+
 class AnalogOutputs:
     """
-    Applies slider/knob positions (0-100) to the system volume.
+    Applies slider/knob positions (0-100) to the system volume, to the volume
+    of one application, or to the microphone level.
 
     The deck reports the position of each control about 100 times per second.
     Handling every report as its own action floods whatever is being driven
@@ -647,33 +765,39 @@ class AnalogOutputs:
     thread applies it:
       - nothing happens until the control is actually moved (the position at
         connection time is only a starting point), and jitter of +/-1 is ignored;
-      - volume follows the movement with volume keys (2% per key press).
+      - system volume follows the movement with volume keys (2% per key press);
+      - app and microphone volume are set to the position itself;
+      - after an error it waits before trying again instead of retrying non-stop.
     """
 
     DEADBAND = 2                    # percent; smaller changes are jitter
     MAX_VOLUME_KEYS = 25            # per step (50%)
+    MIXER_ERROR_BACKOFF = 5.0       # seconds
 
     def __init__(self):
         self._lock = threading.Lock()
         self._wake = Event()
         self._controls = {}
         self._thread = None
+        self._mixer_retry_time = 0.0
+        self._mixer_error_logged = False
 
     def reset(self):
         """Forget all positions (called on every new serial connection)."""
         with self._lock:
             self._controls.clear()
 
-    def update(self, control, kind, value):
+    def update(self, control, kind, value, param=None):
         try:
             value = max(0, min(100, int(float(value))))
         except (TypeError, ValueError):
             return
         with self._lock:
             state = self._controls.get(control)
-            if state is None or state["kind"] != kind:
-                # First report: remember where the control is, do nothing.
-                self._controls[control] = {"kind": kind, "applied": value, "wanted": value}
+            if state is None or state["kind"] != kind or state["param"] != param:
+                # First report (or the control was just given another
+                # function): remember where it is, do nothing.
+                self._controls[control] = {"kind": kind, "param": param, "applied": value, "wanted": value}
                 return
             if state["wanted"] == value:
                 return
@@ -686,7 +810,7 @@ class AnalogOutputs:
     def _pending(self):
         with self._lock:
             return [
-                (name, st["kind"], st["applied"], st["wanted"])
+                (name, st["kind"], st["param"], st["applied"], st["wanted"])
                 for name, st in self._controls.items()
                 if abs(st["wanted"] - st["applied"]) >= self.DEADBAND
                 or (st["wanted"] != st["applied"] and st["wanted"] in (0, 100))
@@ -715,8 +839,30 @@ class AnalogOutputs:
 
     def _apply_pending(self):
         work_left = False
-        for name, kind, applied, wanted in self._pending():
-            if kind == 'set_volume':
+        for name, kind, param, applied, wanted in self._pending():
+            if kind in _MIXER_ACTIONS:
+                if time.monotonic() < self._mixer_retry_time:
+                    work_left = True
+                    continue
+                try:
+                    if kind == 'set_app_volume':
+                        changed = windows_audio.set_app_volume(param, wanted)
+                    elif kind == 'set_focus_volume':
+                        changed = windows_audio.set_focus_volume(wanted)
+                    else:
+                        changed = windows_audio.set_mic_volume(wanted)
+                    self._mixer_error_logged = False
+                    if ENABLE_ACTION_LOG:
+                        log.debug(f"{kind} {param or ''} -> {wanted}% ({name}, {changed} mixer entries)")
+                except Exception as e:
+                    self._mixer_retry_time = time.monotonic() + self.MIXER_ERROR_BACKOFF
+                    if not self._mixer_error_logged:
+                        log.error(f"Could not set {kind}: {e}")
+                        self._mixer_error_logged = True
+                # Applied either way: if the app is not running there is nothing
+                # to retry until the control moves again.
+                self._mark_applied(name, kind, wanted)
+            elif kind == 'set_volume':
                 steps = min(self.MAX_VOLUME_KEYS, abs(wanted - applied) // 2)
                 if steps < 1:
                     # 1% left to an end stop: nothing to press, call it done.
@@ -734,6 +880,7 @@ class AnalogOutputs:
 
 
 analog_outputs = AnalogOutputs()
+_ANALOG_ACTIONS = ('set_volume',) + _MIXER_ACTIONS
 
 # Screen brightness control was removed: on real hardware the monitor commands
 # (DDC/CI) were unreliable and could destabilise the displays. Configs that
@@ -785,12 +932,12 @@ def execute_action(action_def, absolute_value=None, multiplier=1):
             pyautogui.write(value)
         elif action_type in _REMOVED_ACTIONS:
             _warn_removed_action(action_type)
-        elif action_type == 'set_volume' and absolute_value is not None:
+        elif action_type in _ANALOG_ACTIONS and absolute_value is not None:
             # Slider/knob position. Never handled here one sample at a time:
             # see AnalogOutputs for why.
-            analog_outputs.update(action_type, action_type, absolute_value)
-        elif action_type == 'set_volume':
-            log.warning("'set_volume' only works on a slider or knob. Ignored.")
+            analog_outputs.update(action_type, action_type, absolute_value, action_def.get('value'))
+        elif action_type in _ANALOG_ACTIONS:
+            log.warning(f"'{action_type}' only works on a slider or knob. Ignored.")
         elif action_type == 'toggle_mute':
             _press_system_volume_key('volumemute', 1)
             if ENABLE_ACTION_LOG:
@@ -1331,10 +1478,10 @@ def process_serial_line(line, prev_main_btns, prev_enc_click, prev_enc_val, prev
                     if isinstance(abs_mapping, dict) and abs_mapping.get('action') in _REMOVED_ACTIONS:
                         _warn_removed_action(abs_mapping['action'])
                         return curr
-                    if isinstance(abs_mapping, dict) and abs_mapping.get('action') == 'set_volume':
-                        # Position-following output: only the latest position
-                        # matters, so it never goes through the action queue.
-                        analog_outputs.update(name, abs_mapping['action'], curr)
+                    if isinstance(abs_mapping, dict) and abs_mapping.get('action') in _ANALOG_ACTIONS:
+                        # Position-following outputs: only the latest position
+                        # matters, so these never go through the action queue.
+                        analog_outputs.update(name, abs_mapping['action'], curr, abs_mapping.get('value'))
                         return curr
                     if abs_mapping:
                         if prev is not None and abs(curr - prev) >= ANALOG_ABSOLUTE_DEADBAND:

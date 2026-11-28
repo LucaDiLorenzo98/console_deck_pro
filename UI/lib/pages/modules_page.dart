@@ -409,6 +409,8 @@ class _ConfigDialogState extends State<_ConfigDialog> {
   late final TextEditingController _appController;
   late final TextEditingController _hotkeyController;
   late final TextEditingController _audioController;
+  late final TextEditingController _appVolumeController;
+  List<String> _audioApps = const [];
 
   bool get _isAnalog =>
       widget.module.id == 'sliders' || widget.module.id == 'knobs';
@@ -419,7 +421,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     final config = widget.currentConfig;
 
     _availableTypes = _isAnalog
-        ? ['None', 'Volume']
+        ? ['None', 'Volume', 'AppVolume']
         : ['None', 'Link', 'App', 'Hotkey', 'Audio'];
 
     _selectedType = config['type'] ?? 'None';
@@ -439,6 +441,14 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     _audioController = TextEditingController(
       text: _selectedType == 'Audio' ? config['value'] : '',
     );
+    _appVolumeController = TextEditingController(
+      text: _selectedType == 'AppVolume' ? config['value'] : '',
+    );
+    if (_isAnalog) {
+      ConfigService.fetchAudioApps().then((apps) {
+        if (mounted) setState(() => _audioApps = apps);
+      });
+    }
   }
 
   @override
@@ -447,6 +457,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     _appController.dispose();
     _hotkeyController.dispose();
     _audioController.dispose();
+    _appVolumeController.dispose();
     super.dispose();
   }
 
@@ -456,6 +467,11 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     if (_selectedType == 'App') value = _appController.text;
     if (_selectedType == 'Hotkey') value = _hotkeyController.text;
     if (_selectedType == 'Audio') value = _audioController.text;
+    if (_selectedType == 'AppVolume') {
+      value = _appVolumeController.text.trim();
+      // Without an app name there is nothing to control.
+      if (value.isEmpty) return {'type': 'None', 'value': ''};
+    }
     return {'type': _selectedType, 'value': value};
   }
 
@@ -489,8 +505,8 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                   label = AppStrings.get(locale, AppKeys.typeHotkey);
                 } else if (value == 'Volume') {
                   label = AppStrings.get(locale, AppKeys.actionVolume);
-                } else if (value == 'Brightness') {
-                  label = AppStrings.get(locale, AppKeys.actionBrightness);
+                } else if (value == 'AppVolume') {
+                  label = AppStrings.get(locale, AppKeys.actionAppVolume);
                 } else if (value == 'Audio') {
                   label = AppStrings.get(locale, AppKeys.typeAudio);
                 }
@@ -506,6 +522,44 @@ class _ConfigDialogState extends State<_ConfigDialog> {
               },
             ),
             const SizedBox(height: 20),
+            if (_isAnalog && _selectedType == 'AppVolume') ...[
+              TextField(
+                controller: _appVolumeController,
+                decoration: InputDecoration(
+                  labelText: AppStrings.get(locale, AppKeys.appVolumeName),
+                  hintText: AppStrings.get(locale, AppKeys.appVolumeHint),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              if (_audioApps.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    AppStrings.get(locale, AppKeys.appVolumeRunning),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _audioApps
+                        .map(
+                          (app) => ActionChip(
+                            label: Text(app),
+                            onPressed: () => setState(
+                              () => _appVolumeController.text = app,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ],
             if (!_isAnalog) ...[
               if (_selectedType == 'Link')
                 TextField(
