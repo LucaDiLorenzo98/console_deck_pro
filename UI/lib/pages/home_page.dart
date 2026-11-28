@@ -710,6 +710,44 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAlertBanner(Locale locale) {
+    if (widget.status == BackendStatus.backendDown) {
+      return Container(
+        width: double.infinity,
+        color: Theme.of(context).colorScheme.errorContainer,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Theme.of(context).colorScheme.onErrorContainer,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.get(locale, AppKeys.alertBackendDownTitle),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    AppStrings.get(locale, AppKeys.alertBackendDownText),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     if (widget.status != BackendStatus.notConfigured) {
       return const SizedBox.shrink(); // Don't show anything if not needed
     }

@@ -14,10 +14,12 @@
 From the project root:
 
 ```bash
-py -m PyInstaller --noconfirm --onefile --noconsole --name console_deck_pro console_deck_pro.py
+py -m PyInstaller --noconfirm console_deck_pro.spec
 ```
 
-Output: `dist\console_deck_pro.exe`
+Output: the folder `dist\console_deck_pro\` (`console_deck_pro.exe` plus `_internal\`). The exe does not run without the `_internal` folder next to it.
+
+> Always build from the `.spec` file — it includes the uvicorn hidden imports the exe needs at runtime and builds a **windowed** (no console) app on purpose, so the automatic start at sign-in (`--background`) never shows a terminal. Started by hand without `--background`, the exe opens its own console window; everything is also written to `%APPDATA%\ConsoleDeckPro\logs\backend.log`.
 
 ---
 
@@ -42,7 +44,7 @@ flutter build windows \
 
 ## 3 — Build the Windows installer
 
-1. Make sure `dist\console_deck_pro.exe` exists (built in step 1 — the `.iss` script reads it from there)
+1. Make sure the folder `dist\console_deck_pro\` exists (built in step 1 — the `.iss` script reads it from there)
 2. Open `UI\setup.iss` in Inno Setup Compiler
 3. Press **Compile** (Ctrl+F9)
 
@@ -56,7 +58,9 @@ Output: `UI\Output\ConsoleDeckPro_Setup.exe`
 
 - Installs the Flutter UI (`console_deck_ui.exe`) and the compiled backend (`console_deck_pro.exe`) to the app directory
 - Copies `config.example.json` for reference
-- Does **not** auto-start the backend — users must launch it manually or add it to Windows startup themselves (e.g. via Task Scheduler or `shell:startup`)
+- Does **not** launch the UI at the end of setup unless the user ticks the option (unticked by default); only the backend is started
+- Registers the backend to start hidden at sign-in (`HKLM\...\CurrentVersion\Run` → `console_deck_pro.exe --background`, optional task ticked by default) and starts it at the end of setup
+- Stops a running backend before upgrading or uninstalling, and removes the old manual `Console Deck PRO Backend` scheduled task
 - Cleans up legacy files from older installer versions on upgrade
 
 ---

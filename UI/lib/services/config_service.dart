@@ -162,8 +162,11 @@ class ConfigService {
         case 'Volume':
           entry['action'] = 'set_volume';
           break;
-        case 'Brightness':
-          entry['action'] = 'set_brightness';
+        case 'AppVolume':
+          // Volume of one app in the Windows mixer; value is the app name.
+          if (value.trim().isEmpty) return;
+          entry['action'] = 'set_app_volume';
+          entry['value'] = value.trim();
           break;
         case 'None':
           target.remove(key);
@@ -286,6 +289,25 @@ class ConfigService {
     }
   }
 
+  /// Apps that currently have an entry in the Windows volume mixer.
+  /// Empty when the backend is not reachable or nothing is playing.
+  static Future<List<String>> fetchAudioApps() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$_backendBaseUrl/audio/apps'))
+          .timeout(const Duration(seconds: 2));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded.map((e) => e.toString()).toList();
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading audio apps: $e');
+    }
+    return [];
+  }
+
   static Future<Map<String, dynamic>> _readConfigFile(File file) async {
     if (!await file.exists()) {
       return {
@@ -362,8 +384,12 @@ class ConfigService {
       value = val?.toString() ?? '';
     } else if (action == 'set_volume') {
       type = 'Volume';
+    } else if (action == 'set_app_volume') {
+      type = 'AppVolume';
+      value = val?.toString() ?? '';
     } else if (action == 'set_brightness') {
-      type = 'Brightness';
+      // Screen brightness was removed: show the control as unassigned.
+      type = 'None';
     } else if (action == 'home_assistant') {
       type = 'HomeAssistant';
       final entityId = (entry['entity_id'] ?? '').toString();

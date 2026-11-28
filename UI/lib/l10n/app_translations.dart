@@ -23,6 +23,10 @@ class AppKeys {
   static const String audioFile = 'audio_file';
   static const String actionVolume = 'action_volume';
   static const String actionBrightness = 'action_brightness';
+  static const String actionAppVolume = 'action_app_volume';
+  static const String appVolumeName = 'app_volume_name';
+  static const String appVolumeHint = 'app_volume_hint';
+  static const String appVolumeRunning = 'app_volume_running';
   static const String url = 'url';
   static const String urlHint = 'url_hint';
   static const String executablePath = 'executable_path';
@@ -51,6 +55,8 @@ class AppKeys {
   static const String configPromptButton = 'config.promptButton';
   static const String alertNotConfiguredText = 'alert.notConfigured.text';
   static const String alertNotConfiguredButton = 'alert.notConfigured.button';
+  static const String alertBackendDownTitle = 'alert.backendDown.title';
+  static const String alertBackendDownText = 'alert.backendDown.text';
 
   // Settings Links
   static const String visitWebsite = 'visit_website';
@@ -103,6 +109,10 @@ class AppStrings {
       AppKeys.audioFile: 'Audio File',
       AppKeys.actionVolume: 'Volume',
       AppKeys.actionBrightness: 'Brightness',
+      AppKeys.actionAppVolume: 'App volume',
+      AppKeys.appVolumeName: 'App name',
+      AppKeys.appVolumeHint: 'e.g. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps playing audio now:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://example.com',
       AppKeys.executablePath: 'Executable Path',
@@ -132,6 +142,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Serial port not configured. Please select a port to connect to the device.',
       AppKeys.alertNotConfiguredButton: 'Open Settings',
+      AppKeys.alertBackendDownTitle: 'Backend not running',
+      AppKeys.alertBackendDownText:
+          'The Console Deck PRO backend is not running. It normally starts by itself when you sign in to Windows: sign out and back in, or start console_deck_pro.exe from the installation folder (usually C:\\Program Files\\Console Deck PRO).',
       AppKeys.visitWebsite: 'Visit Website',
       AppKeys.visitMakerWorld: 'Visit MakerWorld',
       AppKeys.socialNetworks: 'Social Networks',
@@ -180,6 +193,10 @@ class AppStrings {
       AppKeys.audioFile: 'File Audio',
       AppKeys.actionVolume: 'Volume',
       AppKeys.actionBrightness: 'Luminosita',
+      AppKeys.actionAppVolume: 'Volume di un\'app',
+      AppKeys.appVolumeName: 'Nome dell\'app',
+      AppKeys.appVolumeHint: 'es. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'App che stanno riproducendo audio:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://compra.com',
       AppKeys.executablePath: 'Percorso Eseguibile',
@@ -209,6 +226,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Porta seriale non configurata. Seleziona un porto per connetterti al dispositivo.',
       AppKeys.alertNotConfiguredButton: 'Apri Impostazioni',
+      AppKeys.alertBackendDownTitle: 'Backend non in esecuzione',
+      AppKeys.alertBackendDownText:
+          'Il backend di Console Deck PRO non è in esecuzione. Di norma si avvia da solo all\'accesso a Windows: esci e rientra, oppure avvia console_deck_pro.exe dalla cartella di installazione (di solito C:\\Program Files\\Console Deck PRO).',
       AppKeys.visitWebsite: 'Visita il Sito',
       AppKeys.visitMakerWorld: 'Visita MakerWorld',
       AppKeys.socialNetworks: 'Social Network',
@@ -258,6 +278,10 @@ class AppStrings {
       AppKeys.audioFile: 'Archivo de Audio',
       AppKeys.actionVolume: 'Volumen',
       AppKeys.actionBrightness: 'Brillo',
+      AppKeys.actionAppVolume: 'Volumen de una app',
+      AppKeys.appVolumeName: 'Nombre de la app',
+      AppKeys.appVolumeHint: 'p. ej. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps que reproducen audio ahora:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://ejemplo.com',
       AppKeys.executablePath: 'Ruta Ejecutable',
@@ -287,6 +311,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Puerto serie no configurado. Seleccione un puerto para conectarse al dispositivo.',
       AppKeys.alertNotConfiguredButton: 'Abrir Configuración',
+      AppKeys.alertBackendDownTitle: 'Backend no está en ejecución',
+      AppKeys.alertBackendDownText:
+          'El backend de Console Deck PRO no está en ejecución. Normalmente se inicia solo al iniciar sesión en Windows: cierra sesión y vuelve a entrar, o inicia console_deck_pro.exe desde la carpeta de instalación (normalmente C:\\Program Files\\Console Deck PRO).',
       AppKeys.visitWebsite: 'Visitar Sitio Web',
       AppKeys.visitMakerWorld: 'Visitar MakerWorld',
       AppKeys.socialNetworks: 'Redes Sociales',
@@ -337,6 +364,10 @@ class AppStrings {
       AppKeys.audioFile: 'Fichier Audio',
       AppKeys.actionVolume: 'Volume',
       AppKeys.actionBrightness: 'Luminosité',
+      AppKeys.actionAppVolume: 'Volume d\'une app',
+      AppKeys.appVolumeName: 'Nom de l\'app',
+      AppKeys.appVolumeHint: 'ex. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps qui diffusent du son :',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://exemple.com',
       AppKeys.executablePath: 'Chemin Exécutable',
@@ -366,6 +397,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Port série non configuré. Veuillez sélectionner un port pour vous connecter à l\'appareil.',
       AppKeys.alertNotConfiguredButton: 'Ouvrir les Paramètres',
+      AppKeys.alertBackendDownTitle: 'Backend non démarré',
+      AppKeys.alertBackendDownText:
+          'Le backend de Console Deck PRO n\'est pas en cours d\'exécution. Il démarre normalement tout seul à l\'ouverture de session Windows : déconnectez-vous puis reconnectez-vous, ou lancez console_deck_pro.exe depuis le dossier d\'installation (généralement C:\\Program Files\\Console Deck PRO).',
       AppKeys.visitWebsite: 'Visiter le Site Web',
       AppKeys.visitMakerWorld: 'Visiter MakerWorld',
       AppKeys.socialNetworks: 'Réseaux Sociaux',
@@ -416,6 +450,10 @@ class AppStrings {
       AppKeys.audioFile: 'Audiodatei',
       AppKeys.actionVolume: 'Lautstärke',
       AppKeys.actionBrightness: 'Helligkeit',
+      AppKeys.actionAppVolume: 'App-Lautstärke',
+      AppKeys.appVolumeName: 'App-Name',
+      AppKeys.appVolumeHint: 'z. B. spotify, discord, chrome',
+      AppKeys.appVolumeRunning: 'Apps, die gerade Ton ausgeben:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://beispiel.de',
       AppKeys.executablePath: 'Pfad',
@@ -445,6 +483,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'Serieller Port nicht konfiguriert. Bitte wählen Sie einen Port aus, um eine Verbindung zum Gerät herzustellen.',
       AppKeys.alertNotConfiguredButton: 'Einstellungen öffnen',
+      AppKeys.alertBackendDownTitle: 'Backend läuft nicht',
+      AppKeys.alertBackendDownText:
+          'Das Console Deck PRO Backend läuft nicht. Normalerweise startet es automatisch bei der Windows-Anmeldung: Melde dich ab und wieder an oder starte console_deck_pro.exe aus dem Installationsordner (normalerweise C:\\Program Files\\Console Deck PRO).',
       AppKeys.visitWebsite: 'Webseite Besuchen',
       AppKeys.visitMakerWorld: 'MakerWorld Besuchen',
       AppKeys.socialNetworks: 'Soziale Netzwerke',
@@ -492,6 +533,10 @@ class AppStrings {
       AppKeys.audioFile: '音频文件',
       AppKeys.actionVolume: '音量',
       AppKeys.actionBrightness: '亮度',
+      AppKeys.actionAppVolume: '应用音量',
+      AppKeys.appVolumeName: '应用名称',
+      AppKeys.appVolumeHint: '例如 spotify、discord、chrome',
+      AppKeys.appVolumeRunning: '正在播放音频的应用：',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://example.com',
       AppKeys.executablePath: '执行路径',
@@ -518,6 +563,9 @@ class AppStrings {
       AppKeys.configPromptButton: '前往设置',
       AppKeys.alertNotConfiguredText: '串行端口未配置。请选择一个端口以连接到设备。',
       AppKeys.alertNotConfiguredButton: '打开设置',
+      AppKeys.alertBackendDownTitle: '后端未运行',
+      AppKeys.alertBackendDownText:
+          'Console Deck PRO 后端未运行。它通常会在登录 Windows 时自动启动：请注销后重新登录，或从安装文件夹（通常为 C:\\Program Files\\Console Deck PRO）启动 console_deck_pro.exe。',
       AppKeys.visitWebsite: '访问网站',
       AppKeys.visitMakerWorld: '访问 MakerWorld',
       AppKeys.socialNetworks: '社交网络',
@@ -563,6 +611,10 @@ class AppStrings {
       AppKeys.audioFile: 'オーディオファイル',
       AppKeys.actionVolume: '音量',
       AppKeys.actionBrightness: '明るさ',
+      AppKeys.actionAppVolume: 'アプリの音量',
+      AppKeys.appVolumeName: 'アプリ名',
+      AppKeys.appVolumeHint: '例: spotify、discord、chrome',
+      AppKeys.appVolumeRunning: '音声を再生中のアプリ:',
       AppKeys.url: 'URL',
       AppKeys.urlHint: 'https://example.com',
       AppKeys.executablePath: '実行パス',
@@ -592,6 +644,9 @@ class AppStrings {
       AppKeys.alertNotConfiguredText:
           'シリアルポートが設定されていません。デバイスに接続するポートを選択してください。',
       AppKeys.alertNotConfiguredButton: '設定を開く',
+      AppKeys.alertBackendDownTitle: 'バックエンドが起動していません',
+      AppKeys.alertBackendDownText:
+          'Console Deck PRO のバックエンドが起動していません。通常は Windows へのサインイン時に自動で起動します。サインアウトして再度サインインするか、インストールフォルダー（通常は C:\\Program Files\\Console Deck PRO）から console_deck_pro.exe を起動してください。',
       AppKeys.visitWebsite: 'ウェブサイトへ',
       AppKeys.visitMakerWorld: 'MakerWorldへ',
       AppKeys.socialNetworks: 'ソーシャルネットワーク',

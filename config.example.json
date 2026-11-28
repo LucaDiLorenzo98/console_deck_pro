@@ -46,9 +46,6 @@
             "slider_1": {
                 "action": "set_volume"
             },
-            "slider_2": {
-                "action": "set_brightness"
-            },
             "knob_1_cw": {
                 "action": "hotkey",
                 "value": ["up"]
